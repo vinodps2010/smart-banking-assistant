@@ -1,0 +1,135 @@
+# st1 : 
+uv init 
+uv venv
+
+
+# st5: install libraries 
+uv add fastapi uvicorn streamlit langchain langgraph 
+uv add langchain-openai langchain-postgres psycopg2-binary
+uv add pgvector  sqlalchemy sentence-transformers
+uv add rank-bm25 pymupdf pdfplumber camelot-py
+uv add pytesseract python-dotenv pydantic
+uv add httpx python-multipart langsmith openai
+
+# run fastapi 
+uv run uvicorn src.api.main:app --reload --port 8000
+
+
+# how to run streamlit 
+uv run streamlit run frontend/app.py
+
+#swagger 
+http://127.0.0.1:8000/docs
+
+Q: 
+What is the eligibility criteria for home loan?
+Show transactions for account 1345367 where amount is greater than 50000
+
+
+
+# change to remove got repository 
+
+git remote set-url origin https://github.com/Irfan270992/Irfan2792-Capstoneproject2.git
+
+git remote -v
+
+
+
+# connect to postgres
+#smart_banking : psql -U postgres -h localhost -p 5432  
+#smart_banking_rag_db : psql -U postgres -h localhost -p 5433
+
+\c smart_banking
+
+# project structure 
+
+smart-banking-assistant/
+│
+├── app.py                             # FastAPI Application Entry Point
+├── requirements.txt
+├── README.md
+├── .env
+├── .gitignore
+│
+├── frontend/                          # Streamlit Application
+│   │
+│   ├── app.py                         # Streamlit Entry Point
+│   ├── api_client.py                  # Calls FastAPI APIs
+│   │
+│   └── pages/
+│       ├── chat.py                    # Banking Assistant
+│       ├── upload.py                  # Upload Documents
+│       └── analytics.py               # API Health / Statistics
+│
+├── src/
+│   │
+│   ├── api/
+│   │   └── routes.py                  # FastAPI Routes
+│   │
+│   ├── agents/
+│   │   ├── graph.py                   # LangGraph StateGraph
+│   │   └── nodes.py                   # Graph Nodes
+│   │
+│   ├── database/
+│   │   ├── postgres.py                # PostgreSQL Connection
+│   │   ├── models.py                  # SQLAlchemy Models
+│   │   ├── create_tables.sql          # Vector Table Creation
+│   │   └── seed_data.sql              # Banking Seed Data
+│   │
+│   ├── ingestion/
+│   │   ├── loader.py                  # PDF/Image Processing
+│   │   └── chunker.py                 # Chunking & Embeddings
+│   │
+│   ├── retriever/
+│   │   ├── search.py                  # Vector + Keyword + Hybrid Search
+│   │   └── reranker.py                # Cross Encoder Reranker
+│   │
+│   ├── sql/
+│   │   └── sql_engine.py              # NL→SQL + Validation + Execution
+│   │
+│   ├── services/
+│   │   ├── rag_service.py             # RAG Business Logic
+│   │   ├── sql_service.py             # SQL Business Logic
+│   │   └── query_service.py           # Main Query Orchestration
+│   │
+│   ├── common/
+│   │   ├── config.py                  # Environment Variables
+│   │   ├── prompts.py                 # All LLM Prompts
+│   │   ├── schemas.py                 # Pydantic Models
+│   │   └── utils.py                   # Common Utility Functions
+│   │
+│   └── __init__.py
+│
+├── data/
+│   ├── uploads/
+│   └── processed/
+│
+└── tests/
+    ├── test_api.py
+    ├── test_rag.py
+    ├── test_sql.py
+    └── test_ingestion.py
+    
+
+
+
+PORT 5432                         PORT 5433
+──────────                         ──────────
+Transactional DB                  PGVector DB
+Smart Banking                     Smart Banking RAG
+        │                                │
+        │                                │
+ accounts                         document chunks
+ transactions                     embeddings
+ loans                            metadata
+ FDs                              vector search
+ credit cards                     FTS
+        │                                │
+        └────────────┬───────────────────┘
+                     │
+                LangGraph
+                     │
+              FastAPI /query
+                     │
+                Streamlit
+                
