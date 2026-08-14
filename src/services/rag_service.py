@@ -1,59 +1,76 @@
-"""
-RAG service.
-
-Retrieves relevant banking knowledge-base chunks
-and generates a grounded answer using OpenAI.
-"""
-
 from openai import OpenAI
 from dotenv import load_dotenv
 
-from src.retriever.search import vector_search
-from src.common.config import OPENAI_API_KEY, OPENAI_MODEL
+
+from src.retriever.search import (
+    hybrid_reranked_search,
+)
+
+
+from src.retriever.reranker import (
+    is_retrieval_relevant,
+)
+
+
+from src.common.config import (
+    OPENAI_API_KEY,
+    OPENAI_MODEL,
+)
+
 
 load_dotenv()
+
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-def _build_context(chunks):
-    """
-    Build a structured context block for the LLM.
 
-    Including metadata in the context helps the model
-    understand where each piece of information came from.
-    """
+
+def _build_context(chunks):
+
 
     context_parts = []
 
-    for index, chunk in enumerate(chunks, start=1):
+
+    for index, chunk in enumerate(
+        chunks,
+        start=1,
+    ):
+
 
         context_parts.append(f"""
 SOURCE {index}
 Document: {chunk.get("document_name")}
 Page: {chunk.get("source_page")}
 Chunk Type: {chunk.get("chunk_type")}
-Similarity Score: {chunk.get("score")}
+RRF Score: {chunk.get("rrf_score")}
+Rerank Score: {chunk.get("rerank_score")}
+
 
 Content:
 {chunk.get("content", "")}
 """.strip())
 
+
     return "\n\n---\n\n".join(context_parts)
 
 
-def answer_rag_query(query: str):
-    """
-    Retrieve relevant knowledge-base chunks and
-    generate a grounded banking answer.
-    """
 
-    chunks = vector_search(
-        query,
-        top_k=8,
+
+def answer_rag_query(
+    query: str,
+):
+
+
+    chunks = hybrid_reranked_search(
+        query=query,
+        candidate_k=10,
+        final_k=5,
     )
 
+
     if not chunks:
+
 
         return {
             "answer": (
@@ -61,59 +78,60 @@ def answer_rag_query(query: str):
                 "in the banking knowledge base."
             ),
             "sources": [],
+            "retrieval_quality": 0.0,
+            "retry_required": True,
         }
+
+
+    best_score = max(
+        chunk.get(
+            "rerank_score",
+            0.0,
+        )
+        for chunk in chunks
+    )
+
+
+    retry_required = not is_retrieval_relevant(
+        chunks,
+        threshold=0.50,
+    )
+
 
     context = _build_context(chunks)
 
+
     prompt = f"""
-You are a banking assistant for Northstar Bank.
+You are a banking assistant for NorthStar Bank.
 
-Your task is to answer banking questions using the supplied
-knowledge-base content.
 
-The retrieved content may contain:
-- document headings
-- section titles
-- tables
-- related paragraphs
+Answer the user's question using ONLY the retrieved
+banking knowledge-base information below.
 
-Use these together to understand the meaning of the information.
-IMPORTANT RULES:
 
-1. Answer only using the provided banking knowledge-base context.
+Use related section headings, paragraphs and tables
+together when determining the meaning of the information.
 
-2. Use document structure and section headings to understand context.
-   For example:
-   - "SECTION 1: HOME LOAN PRODUCTS"
-   - "1.3 Eligibility Criteria"
-   together indicate that the eligibility information belongs to
-   home loan products.
 
-3. Combine information from related chunks, including:
-   - section headings
-   - text paragraphs
-   - tables
+Do not invent facts.
 
-4. If a section heading identifies the product area and the following
-   content contains eligibility parameters, treat them as belonging
-   to that product.
 
-5. Present the answer clearly using bullets or tables.
+If the information is not available in the provided
+context, clearly state that it is not available.
 
-6. Do not mention retrieval, embeddings, similarity scores,
-   or context limitations unless information is truly missing.
 
-7. Do not refuse an answer merely because the exact product name
-   is not repeated in every chunk.
-   
-KNOWLEDGE-BASE CONTEXT:
+Knowledge-base context:
+
 
 {context}
 
-USER QUESTION:
+
+User question:
+
 
 {query}
 """
+
 
     response = client.chat.completions.create(
         model=OPENAI_MODEL,
@@ -125,9 +143,89 @@ USER QUESTION:
         ],
     )
 
+
     answer = response.choices[0].message.content
+
 
     return {
         "answer": answer,
         "sources": chunks,
+        "retrieval_quality": best_score,
+        "retry_required": retry_required,
     }
+
+
+
+
+def stream_rag_answer(query: str):
+    """
+    Stream LLM response tokens.
+
+
+    Retrieval flow remains:
+        Hybrid Search
+        RRF Fusion
+        Cohere Reranking
+        LLM Streaming
+    """
+
+
+    chunks = hybrid_reranked_search(
+        query=query,
+        candidate_k=10,
+        final_k=5,
+    )
+
+
+    if not chunks:
+
+
+        yield ("I could not find relevant " "information in the knowledge base.")
+
+
+        return
+
+
+    context = "\n\n".join([chunk["content"] for chunk in chunks])
+
+
+    prompt = f"""
+You are a banking assistant.
+
+
+Answer only using the context below.
+
+
+Context:
+{context}
+
+
+
+
+Question:
+{query}
+"""
+
+
+    response = client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        stream=True,
+    )
+
+
+    for chunk in response:
+
+
+        token = chunk.choices[0].delta.content
+
+
+        if token:
+
+
+            yield token

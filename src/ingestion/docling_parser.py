@@ -2,13 +2,19 @@
 Docling based PDF parser.
 
 
+
+
 Responsibilities:
 1. Convert PDF using Docling.
 2. Extract text, tables and images.
 3. Return normalized multimodal elements.
 
 
+
+
 Output format:
+
+
 
 
 [
@@ -20,11 +26,15 @@ Output format:
 ]
 """
 
+
 import os
+
 
 os.environ["TORCHDYNAMO_DISABLE"] = "1"
 os.environ["TORCH_COMPILE_DISABLE"] = "1"
 os.environ["TORCHINDUCTOR_DISABLE"] = "1"
+
+
 
 
 from docling.datamodel.base_models import InputFormat
@@ -35,10 +45,14 @@ from docling.datamodel.pipeline_options import (
 )
 
 
+
+
 from docling.document_converter import (
     DocumentConverter,
     PdfFormatOption,
 )
+
+
 
 
 def _create_metadata(
@@ -48,12 +62,15 @@ def _create_metadata(
     content_type: str,
 ):
 
+
     return {
         "source_file": source_file,
         "page_number": page_number,
         "section": section,
         "content_type": content_type,
     }
+
+
 
 
 def parse_document(
@@ -63,15 +80,20 @@ def parse_document(
     Parse PDF using Docling.
 
 
+
+
     Returns:
         List of normalized document elements.
     """
 
+
     print(f"[docling] Processing: {file_path}")
+
 
     # -------------------------------------------------
     # Docling configuration
     # -------------------------------------------------
+
 
     pipeline_options = PdfPipelineOptions(
         do_ocr=False,
@@ -84,6 +106,7 @@ def parse_document(
         ),
     )
 
+
     converter = DocumentConverter(
         allowed_formats=[InputFormat.PDF],
         format_options={
@@ -91,37 +114,51 @@ def parse_document(
         },
     )
 
+
     # -------------------------------------------------
     # Convert document
     # -------------------------------------------------
 
+
     result = converter.convert(file_path)
+
 
     document = result.document
 
+
     print("[docling] Conversion completed")
+
 
     elements = []
 
+
     source_file = os.path.basename(file_path)
 
+
     current_section = None
+
 
     # -------------------------------------------------
     # Iterate Docling elements
     # -------------------------------------------------
 
+
     for item in document.iterate_items():
+
 
         if isinstance(item, tuple):
             node, _ = item
 
+
         else:
             node = item
 
+
         label = str(getattr(node, "label", "")).lower()
 
+
         # Skip repeated headers/footer
+
 
         if label in (
             "page_header",
@@ -129,26 +166,36 @@ def parse_document(
         ):
             continue
 
+
         # Page number
+
 
         page_number = None
 
+
         prov = getattr(node, "prov", None)
+
 
         if prov:
             page_number = prov[0].page_no
 
+
         text = getattr(node, "text", "")
+
 
         # -------------------------------------------------
         # Section headings
         # -------------------------------------------------
 
+
         if "section_header" in label or label == "title":
+
 
             if text:
 
+
                 current_section = text.strip()
+
 
                 elements.append(
                     {
@@ -163,28 +210,39 @@ def parse_document(
                     }
                 )
 
+
         # -------------------------------------------------
         # Tables
         # -------------------------------------------------
 
+
         elif "table" in label:
+
 
             table_content = ""
 
+
             try:
+
 
                 # df = node.export_to_dataframe()
                 df = node.export_to_dataframe(doc=document)
 
+
                 if df is not None:
+
 
                     table_content = df.to_markdown(index=False)
 
+
             except Exception as exc:
+
 
                 print(f"Table extraction warning: {exc}")
 
+
             if table_content:
+
 
                 elements.append(
                     {
@@ -199,11 +257,14 @@ def parse_document(
                     }
                 )
 
+
         # -------------------------------------------------
         # Images / Figures
         # -------------------------------------------------
 
+
         elif "picture" in label or "figure" in label or "chart" in label:
+
 
             elements.append(
                 {
@@ -218,13 +279,17 @@ def parse_document(
                 }
             )
 
+
         # -------------------------------------------------
         # Normal text
         # -------------------------------------------------
 
+
         else:
 
+
             if text and text.strip():
+
 
                 elements.append(
                     {
@@ -239,9 +304,13 @@ def parse_document(
                     }
                 )
 
+
     print(f"[docling] Elements extracted: {len(elements)}")
 
+
     return elements
+
+
 
 
 # ---------------------------------------------------------
@@ -249,17 +318,25 @@ def parse_document(
 # ---------------------------------------------------------
 
 
+
+
 if __name__ == "__main__":
 
+
     chunks = parse_document("data/uploads/KB_Smart_Banking.pdf")
+
 
     print("\nSample output")
     print("=" * 60)
 
+
     for item in chunks[:5]:
+
 
         print("\nType:", item["content_type"])
 
+
         print("Metadata:", item["metadata"])
+
 
         print("Content:", item["content"][:200])

@@ -1,86 +1,365 @@
+"""
+LangGraph agent nodes for Smart Banking Assistant.
+
+
+Nodes:
+1. classify_query
+2. rag_node
+3. rephrase_query_node
+4. sql_node
+5. merge_node
+"""
+
+
 from src.agents.state import AgentState
 
-from src.services.rag_service import answer_rag_query
 
-# from src.sql.sql_engine import process_natural_language_query
-from src.services.sql_service import answer_sql_query
+from src.services.rag_service import (
+    answer_rag_query,
+)
 
 
-def classify_query(state: AgentState):
+from src.services.sql_service import (
+    answer_sql_query,
+)
+
+
+from src.agents.query_rewriter import (
+    rewrite_query,
+)
+
+
+# ============================================================
+# Query Classifier
+# ============================================================
+
+
+
+
+def classify_query(
+    state: AgentState,
+):
+    """
+    Decide whether query should use:
+
+
+    - RAG
+    - SQL
+    - BOTH
+    """
+
 
     query = state["query"].lower()
 
+
     sql_keywords = [
-        "transaction",
-        "transactions",
         "account",
+        "transaction",
         "balance",
-        "statement",
-        "withdraw",
-        "deposit",
         "amount",
+        "statement",
+        "withdrawal",
+        "deposit",
+        "loan outstanding",
+        "emi",
+        "customer",
     ]
 
+
     rag_keywords = [
-        "home loan",
-        "loan eligibility",
-        "interest rate",
-        "credit card",
-        "fixed deposit",
-        "charges",
+        "policy",
+        "eligibility",
+        "criteria",
+        "rate",
+        "charge",
+        "document",
+        "requirement",
+        "interest",
         "product",
     ]
 
-    has_sql = any(word in query for word in sql_keywords)
 
-    has_rag = any(word in query for word in rag_keywords)
+    if any(keyword in query for keyword in sql_keywords):
 
-    if has_sql and has_rag:
-        route = "both"
 
-    elif has_sql:
         route = "sql"
 
-    else:
+
+    elif any(keyword in query for keyword in rag_keywords):
+
+
         route = "rag"
+
+
+    else:
+
+
+        # Default to RAG
+        route = "rag"
+
 
     print(f"[agent] Route selected: {route}")
 
-    return {"route": route}
+
+    return {
+        "route": route,
+        "original_query": state.get(
+            "original_query",
+            state["query"],
+        ),
+        "retry_count": state.get(
+            "retry_count",
+            0,
+        ),
+        "max_retries": state.get(
+            "max_retries",
+            1,
+        ),
+    }
 
 
-def rag_node(state: AgentState):
-
-    result = answer_rag_query(state["query"])
-
-    return {"rag_response": result, "sources": result["sources"]}
 
 
-def sql_node(state: AgentState):
+# ============================================================
+# RAG Node
+# ============================================================
+
+
+
+
+def rag_node(
+    state: AgentState,
+):
+    """
+    Execute Hybrid Search + RRF +
+    Cohere Reranking RAG pipeline.
+
+
+    If retrieval quality is poor,
+    mark retry_required=True.
+    """
+
+
+    query = state.get("rewritten_query") or state["query"]
+
+
+    result = answer_rag_query(query)
+
+
+    retry_count = state.get(
+        "retry_count",
+        0,
+    )
+
+
+    return {
+        "rag_response": result,
+        "sources": result.get(
+            "sources",
+            [],
+        ),
+        "retrieval_quality": result.get(
+            "retrieval_quality",
+            0.0,
+        ),
+        "retry_required": result.get(
+            "retry_required",
+            False,
+        ),
+        "retry_count": retry_count,
+    }
+
+
+
+
+# ============================================================
+# RAG Retry Decision
+# ============================================================
+
+
+
+
+def decide_rag_retry(
+    state: AgentState,
+):
+    """
+    Decide whether RAG should retry
+    with rewritten query.
+    """
+
+
+    retry_required = state.get(
+        "retry_required",
+        False,
+    )
+
+
+    retry_count = state.get(
+        "retry_count",
+        0,
+    )
+
+
+    max_retries = state.get(
+        "max_retries",
+        1,
+    )
+
+
+    if retry_required and retry_count < max_retries:
+
+
+        return "retry"
+
+
+    return "finish"
+
+
+
+
+# ============================================================
+# Query Rephrase Node
+# ============================================================
+
+
+
+
+def rephrase_query_node(
+    state: AgentState,
+):
+    """
+    Rewrite weak retrieval query.
+
+
+    Uses previous retrieved context
+    to generate a better search query.
+    """
+
+
+    rag_response = state.get(
+        "rag_response",
+        {},
+    )
+
+
+    sources = rag_response.get(
+        "sources",
+        [],
+    )
+
+
+    context_parts = []
+
+
+    for source in sources[:5]:
+
+
+        context_parts.append(
+            source.get(
+                "content",
+                "",
+            )
+        )
+
+
+    context = "\n\n".join(context_parts)
+
+
+    rewritten_query = rewrite_query(
+        query=state["query"],
+        context=context,
+    )
+
+
+    print(
+        "[agent] Rewritten query:",
+        rewritten_query,
+    )
+
+
+    return {
+        "rewritten_query": rewritten_query,
+        "retry_count": state.get(
+            "retry_count",
+            0,
+        )
+        + 1,
+        "retry_required": False,
+    }
+
+
+
+
+# ============================================================
+# SQL Node
+# ============================================================
+
+
+
+
+def sql_node(
+    state: AgentState,
+):
+    """
+    Execute SQL based banking queries.
+    """
+
 
     result = answer_sql_query(state["query"])
 
-    return {"sql_response": result}
+
+    return {
+        "sql_response": result,
+    }
 
 
-def route_handler(state):
-    route = state["route"]
-    return state
 
 
-def merge_node(state: AgentState):
-    route = state["route"]
-    if route == "rag":
-        answer = state["rag_response"]["answer"]
-    elif route == "sql":
-        # answer = str(state["sql_response"])
-        answer = state["sql_response"]["answer"]
-    else:
-        answer = (
-            "RAG Result:\n\n"
-            + str(state.get("rag_response"))
-            + "\n\nSQL Result:\n\n"
-            + str(state.get("sql_response"))
+# ============================================================
+# Merge Node
+# ============================================================
+
+
+
+
+def merge_node(
+    state: AgentState,
+):
+    """
+    Merge RAG / SQL response
+    into final answer.
+    """
+
+
+    route = state.get("route")
+
+
+    if route == "sql":
+
+
+        sql_response = state.get(
+            "sql_response",
+            {},
         )
 
-    return {"final_response": answer}
+
+        return {
+            "final_response": sql_response.get(
+                "answer",
+                "No response available.",
+            )
+        }
+
+
+    rag_response = state.get(
+        "rag_response",
+        {},
+    )
+
+
+    return {
+        "final_response": rag_response.get(
+            "answer",
+            "No response available.",
+        )
+    }
