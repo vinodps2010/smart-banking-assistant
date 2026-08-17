@@ -2577,3 +2577,192 @@ TypeError: Object of type date is not JSON serializable
 2026-08-16 18:24:22,729 | INFO  | SBA  | merge_node           | Merge completed | route=both
 2026-08-16 18:24:22,936 | INFO  | SBA  | event_generator      | Streaming route selected | route=both
 2026-08-16 18:24:22,936 | INFO  | SBA  | event_generator      | Streaming result sources=[{'id': 936, 'document_id': 'c6434e32-2456-48f1-aa94-8fc42259e834', 'document_name': 'KB_Smart_Banking.pdf', 'content': '| 0                    | 1                                               | 2                                               |\n|:---------------------|:------------------------------------------------|:------------------------------------------------|\n| Minimum Credit Score | 700 (CIBIL)                                     | 720 (CIBIL)                                     |\n| Maximum LTV          | 90% (up to Rs 30L), 80% (for more than Rs. 30L) | 90% (up to Rs 20L), 80% (for more than Rs. 20L) |\n| Employment Stability | 2 years continuous service                      | 3 years in same business                        |', 'chunk_type': 'table', 'source_page': 2, 'product_category': None, 'language': 'en', 'metadata': {'section': '1.3 Eligibility Criteria', 'page_number': 2, 'source_file': 'KB_Smart_Banking.pdf', 'content_type': 'table'}, 'score': 0.5289730116315452, 'vector_rank': 4, 'fts_rank': None, 'rrf_score': 0.015625, 'search_type': 'hybrid_reranked', 'rerank_score': 0.12840511, 'rerank_rank': 1}, {'id': 996, 'document_id': 'c6434e32-2456-48f1-aa94-8fc42259e834', 'document_name': 'KB_Smart_Banking.pdf', 'content': '| Parameter                             | Requirement                                                |\n|:--------------------------------------|:-----------------------------------------------------------|\n| Age                                   | 21 - 60 years (at loan maturity)                           |\n| Minimum Monthly Income (Salaried)     | Rs. 20,000 net take-home                                   |\n| Minimum Annual Income (Self-Employed) | Rs. 2,40,000 (as per ITR)                                  |\n| Minimum CIBIL Score                   | 700                                                        |\n| Employment / Business Stability       | Minimum 1 year with current employer / 2 years in business |', 'chunk_type': 'table', 'source_page': 7, 'product_category': None, 'language': 'en', 'metadata': {'section': '4.4 Eligibility', 'page_number': 7, 'source_file': 'KB_Smart_Banking.pdf', 'content_type': 'table'}, 'score': 0.5383845758109018, 'vector_rank': 7, 'fts_rank': 6, 'rrf_score': 0.03007688828584351, 'search_type': 'hybrid_reranked', 'rerank_score': 0.10049857, 'rerank_rank': 2}, {'id': 934, 'document_id': 'c6434e32-2456-48f1-aa94-8fc42259e834', 'document_name': 'KB_Smart_Banking.pdf', 'content': '1.3 Eligibility Criteria', 'chunk_type': 'text', 'source_page': 2, 'product_category': None, 'language': 'en', 'metadata': {'section': '1.3 Eligibility Criteria', 'page_number': 2, 'source_file': 'KB_Smart_Banking.pdf', 'content_type': 'text'}, 'score': 0.520564591748591, 'vector_rank': 3, 'fts_rank': 13, 'rrf_score': 0.029571646010002173, 'search_type': 'hybrid_reranked', 'rerank_score': 0.09633978, 'rerank_rank': 3}, {'id': 995, 'document_id': 'c6434e32-2456-48f1-aa94-8fc42259e834', 'document_name': 'KB_Smart_Banking.pdf', 'content': '4.4 Eligibility', 'chunk_type': 'text', 'source_page': 7, 'product_category': None, 'language': 'en', 'metadata': {'section': '4.4 Eligibility', 'page_number': 7, 'source_file': 'KB_Smart_Banking.pdf', 'content_type': 'text'}, 'score': 0.5105624580770908, 'vector_rank': 2, 'fts_rank': None, 'rrf_score': 0.016129032258064516, 'search_type': 'hybrid_reranked', 'rerank_score': 0.09312415, 'rerank_rank': 4}, {'id': 928, 'document_id': 'c6434e32-2456-48f1-aa94-8fc42259e834', 'document_name': 'KB_Smart_Banking.pdf', 'content': "NorthStar  Bank  offers  home  loans  for  purchase,  construction,  and  renovation  of  residential  properties. Loans are available for  salaried  and  self-employed  individuals  with  a minimum tenure of 5 years and a maximum of 30 years, subject to the borrower's age at loan maturity not exceeding 70 years.", 'chunk_type': 'text', 'source_page': 1, 'product_category': None, 'language': 'en', 'metadata': {'section': '1.1 Product Overview', 'page_number': 1, 'source_file': 'KB_Smart_Banking.pdf', 'content_type': 'text'}, 'score': 0.5307599640307983, 'vector_rank': 6, 'fts_rank': 2, 'rrf_score': 0.03128054740957967, 'search_type': 'hybrid_reranked', 'rerank_score': 0.0541238, 'rerank_rank': 5}, {'id': 925, 'document_id': 'c6434e32-2456-48f1-aa94-8fc42259e834', 'document_name': 'KB_Smart_Banking.pdf', 'content': 'SECTION 1: HOME LOAN PRODUCTS', 'chunk_type': 'text', 'source_page': 1, 'product_category': None, 'language': 'en', 'metadata': {'section': 'SECTION 1: HOME LOAN PRODUCTS', 'page_number': 1, 'source_file': 'KB_Smart_Banking.pdf', 'content_type': 'text'}, 'score': 0.4999946339066048, 'vector_rank': 1, 'fts_rank': 9, 'rrf_score': 0.030886196246139225, 'search_type': 'hybrid_reranked', 'rerank_score': 0.04880799, 'rerank_rank': 6}, {'id': 924, 'document_id': 'c6434e32-2456-48f1-aa94-8fc42259e834', 'document_name': 'KB_Smart_Banking.pdf', 'content': 'This document is intended for use by Relationship Managers, Customer Service Officers, and Compliance Staff. It contains product terms, interest rates, eligibility criteria, charges, and regulatory disclosures for all retail banking products offered by NorthStar Bank as of April 2026.', 'chunk_type': 'text', 'source_page': 1, 'product_category': None, 'language': 'en', 'metadata': {'section': 'Product Knowledge Base', 'page_number': 1, 'source_file': 'KB_Smart_Banking.pdf', 'content_type': 'text'}, 'score': 0.6144732803695827, 'vector_rank': 18, 'fts_rank': 4, 'rrf_score': 0.02844551282051282, 'search_type': 'hybrid_reranked', 'rerank_score': 0.046573047, 'rerank_rank': 7}, {'id': 938, 'document_id': 'c6434e32-2456-48f1-aa94-8fc42259e834', 'document_name': 'KB_Smart_Banking.pdf', 'content': '| Charge Type                                                      | Amount                                            | Notes                             |\n|:-----------------------------------------------------------------|:--------------------------------------------------|:----------------------------------|\n| Processing Fee                                                   | 0.50% of loan amount (min Rs5,000, max Rs. 50000) | Non-refundable Rs. 25,000         |\n| Legal & Technical Fee                                            | Rs. 5,000 - Rs. 15,000                            | Depends on property value         |\n| Prepayment Charges (Floating Rate)                               | NIL                                               | As per RBI guidelines             |\n| Prepayment Charges (Fixed Rate)                                  | 2% on outstanding principal                       | If prepaid before 3 years         |\n| Foreclosure Charges (Floating)                                   | NIL                                               | Applicable from disbursement date |\n| Foreclosure Charges (Fixed, pre-2022)3% on outstanding principal | 3% on outstanding principal                       | Loans disbursed before Jan 2022   |', 'chunk_type': 'table', 'source_page': 2, 'product_category': None, 'language': 'en', 'metadata': {'section': '1.4 Processing Fees & Charges', 'page_number': 2, 'source_file': 'KB_Smart_Banking.pdf', 'content_type': 'table'}, 'score': 0.6156918838893026, 'vector_rank': 19, 'fts_rank': 14, 'rrf_score': 0.026171741361614778, 'search_type': 'hybrid_reranked', 'rerank_score': 0.04652104, 'rerank_rank': 8}, {'source_type': 'database', 'source_name': 'NorthStar Bank Customer Database'}]
+2026-08-17 04:29:11,634 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:29:11,643 | INFO  | SBA  | stream_query         | Streaming query received | query=Helo
+2026-08-17 04:29:11,644 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:29:14,910 | INFO  | SBA  | event_generator      | Streaming route selected | route=small_talks
+2026-08-17 04:29:20,939 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:29:20,939 | INFO  | SBA  | stream_query         | Streaming query received | query=Hi
+2026-08-17 04:29:20,940 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:29:21,201 | INFO  | SBA  | event_generator      | Streaming route selected | route=small_talks
+2026-08-17 04:29:24,404 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:29:24,405 | INFO  | SBA  | stream_query         | Streaming query received | query=Hello
+2026-08-17 04:29:24,406 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:29:24,653 | INFO  | SBA  | event_generator      | Streaming route selected | route=small_talks
+2026-08-17 04:29:28,739 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:29:28,740 | INFO  | SBA  | stream_query         | Streaming query received | query=how are you ?
+2026-08-17 04:29:28,741 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:29:29,001 | INFO  | SBA  | event_generator      | Streaming route selected | route=small_talks
+2026-08-17 04:29:46,506 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:29:46,506 | INFO  | SBA  | stream_query         | Streaming query received | query=what can you do ?
+2026-08-17 04:29:46,507 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:29:46,762 | INFO  | SBA  | event_generator      | Streaming route selected | route=small_talks
+2026-08-17 04:29:55,000 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:29:55,000 | INFO  | SBA  | stream_query         | Streaming query received | query=how can you help me 
+2026-08-17 04:29:55,001 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:29:57,348 | INFO  | SBA  | event_generator      | Streaming route selected | route=small_talks
+2026-08-17 04:37:40,708 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:37:40,708 | INFO  | SBA  | stream_query         | Streaming query received | query=What is the eligibility criteria for home loan?
+
+2026-08-17 04:37:40,709 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:37:42,167 | INFO  | SBA  | rag_node             | RAG processing started
+2026-08-17 04:37:42,168 | INFO  | SBA  | hybrid_reranked_search | Hybrid reranked search started 
+2026-08-17 04:37:42,169 | INFO  | SBA  | hybrid_search        | Hybrid search started 
+2026-08-17 04:37:42,170 | INFO  | SBA  | vector_search        | Vector search started | top_k=20
+2026-08-17 04:37:43,246 | INFO  | SBA  | vector_search        | Vector search completed | result_count=20
+2026-08-17 04:37:43,247 | INFO  | SBA  | fts_search           | FTS search started | top_k=20
+2026-08-17 04:37:43,385 | INFO  | SBA  | fts_search           | FTS search completed | result_count=20
+2026-08-17 04:37:43,386 | INFO  | SBA  | rrf_fusion           | RRF fusion completed 
+2026-08-17 04:37:43,387 | INFO  | SBA  | hybrid_search        | Hybrid search completed | vector=20 | fts=20 | rrf_results=20
+2026-08-17 04:37:43,798 | INFO  | SBA  | _generate_rag_answer | RAG answer generation started
+2026-08-17 04:37:51,414 | INFO  | SBA  | _generate_rag_answer | RAG answer generation completed
+2026-08-17 04:37:51,414 | INFO  | SBA  | answer_rag_query     | RAG query completed
+2026-08-17 04:37:51,422 | INFO  | SBA  | rag_node             | RAG processing completed 
+2026-08-17 04:37:51,426 | INFO  | SBA  | merge_node           | Merge node started | route=rag
+2026-08-17 04:37:51,427 | INFO  | SBA  | merge_node           | Merge completed | route=rag
+2026-08-17 04:37:51,852 | INFO  | SBA  | event_generator      | Streaming route selected | route=rag
+2026-08-17 04:37:51,853 | INFO  | SBA  | event_generator      | Starting RAG token streaming
+2026-08-17 04:37:51,854 | INFO  | SBA  | stream_rag_answer    | Streaming RAG query started
+2026-08-17 04:37:51,855 | INFO  | SBA  | hybrid_reranked_search | Hybrid reranked search started 
+2026-08-17 04:37:51,855 | INFO  | SBA  | hybrid_search        | Hybrid search started 
+2026-08-17 04:37:51,855 | INFO  | SBA  | vector_search        | Vector search started | top_k=20
+2026-08-17 04:37:53,330 | INFO  | SBA  | vector_search        | Vector search completed | result_count=20
+2026-08-17 04:37:53,330 | INFO  | SBA  | fts_search           | FTS search started | top_k=20
+2026-08-17 04:37:53,375 | INFO  | SBA  | fts_search           | FTS search completed | result_count=20
+2026-08-17 04:37:53,375 | INFO  | SBA  | rrf_fusion           | RRF fusion completed 
+2026-08-17 04:37:53,376 | INFO  | SBA  | hybrid_search        | Hybrid search completed | vector=20 | fts=20 | rrf_results=20
+2026-08-17 04:37:53,769 | INFO  | SBA  | stream_rag_answer    | Streaming RAG retrieval completed 
+2026-08-17 04:38:00,750 | INFO  | SBA  | stream_rag_answer    | Streaming RAG query completed 
+2026-08-17 04:39:50,851 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:39:50,852 | INFO  | SBA  | stream_query         | Streaming query received | query=Show transactions for account 1345367 where amount is greater than 50000
+2026-08-17 04:39:50,853 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:39:52,574 | INFO  | SBA  | process_natural_language_query | Natural-language SQL pipeline started
+2026-08-17 04:39:52,575 | INFO  | SBA  | generate_sql         | SQL generation started
+2026-08-17 04:39:55,127 | INFO  | SBA  | generate_sql         | SQL generation completed
+2026-08-17 04:39:55,128 | INFO  | SBA  | process_natural_language_query | Generated SQL passed validation
+2026-08-17 04:39:55,128 | INFO  | SBA  | execute_sql          | SQL execution started
+2026-08-17 04:39:55,758 | INFO  | SBA  | execute_sql          | SQL execution completed | row_count=7
+2026-08-17 04:39:55,758 | INFO  | SBA  | process_natural_language_query | Natural-language SQL pipeline completed | success=True | row_count=7
+2026-08-17 04:39:55,758 | INFO  | SBA  | sql_node             | SQL processing completed | row_count=7
+2026-08-17 04:39:55,763 | INFO  | SBA  | merge_node           | Merge node started | route=sql
+2026-08-17 04:39:55,764 | INFO  | SBA  | merge_node           | SQL merge state sources=[{'source_type': 'database', 'source_name': 'NorthStar Bank Customer Database'}]
+2026-08-17 04:39:55,764 | INFO  | SBA  | merge_node           | Merge completed | route=sql
+2026-08-17 04:39:55,970 | INFO  | SBA  | event_generator      | Streaming route selected | route=sql
+2026-08-17 04:40:29,700 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:40:29,700 | INFO  | SBA  | stream_query         | Streaming query received | query=Can customer 1345367 get a loan with his current EMI?
+2026-08-17 04:40:29,702 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:40:31,318 | INFO  | SBA  | both_node            | BOTH processing started | executing RAG and SQL
+2026-08-17 04:40:31,319 | INFO  | SBA  | hybrid_reranked_search | Hybrid reranked search started 
+2026-08-17 04:40:31,320 | INFO  | SBA  | hybrid_search        | Hybrid search started 
+2026-08-17 04:40:31,321 | INFO  | SBA  | vector_search        | Vector search started | top_k=20
+2026-08-17 04:40:31,891 | INFO  | SBA  | vector_search        | Vector search completed | result_count=20
+2026-08-17 04:40:31,891 | INFO  | SBA  | fts_search           | FTS search started | top_k=20
+2026-08-17 04:40:31,934 | INFO  | SBA  | fts_search           | FTS search completed | result_count=20
+2026-08-17 04:40:31,934 | INFO  | SBA  | rrf_fusion           | RRF fusion completed 
+2026-08-17 04:40:31,935 | INFO  | SBA  | hybrid_search        | Hybrid search completed | vector=20 | fts=20 | rrf_results=20
+2026-08-17 04:40:32,298 | INFO  | SBA  | _generate_rag_answer | RAG answer generation started
+2026-08-17 04:40:38,145 | INFO  | SBA  | _generate_rag_answer | RAG answer generation completed
+2026-08-17 04:40:38,146 | INFO  | SBA  | answer_rag_query     | RAG query completed
+2026-08-17 04:40:38,147 | INFO  | SBA  | process_natural_language_query | Natural-language SQL pipeline started
+2026-08-17 04:40:38,147 | INFO  | SBA  | generate_sql         | SQL generation started
+2026-08-17 04:40:43,576 | INFO  | SBA  | generate_sql         | SQL generation completed
+2026-08-17 04:40:43,576 | INFO  | SBA  | process_natural_language_query | Generated SQL passed validation
+2026-08-17 04:40:43,576 | INFO  | SBA  | execute_sql          | SQL execution started
+2026-08-17 04:40:43,740 | INFO  | SBA  | execute_sql          | SQL execution completed | row_count=1
+2026-08-17 04:40:43,741 | INFO  | SBA  | process_natural_language_query | Natural-language SQL pipeline completed | success=True | row_count=1
+2026-08-17 04:40:43,742 | INFO  | SBA  | both_node            | BOTH processing completed | rag_sources=8 | sql_rows=1
+2026-08-17 04:40:43,745 | INFO  | SBA  | merge_node           | Merge node started | route=both
+2026-08-17 04:40:43,746 | INFO  | SBA  | merge_node           | Merge completed | route=both
+2026-08-17 04:40:43,903 | INFO  | SBA  | event_generator      | Streaming route selected | route=both
+2026-08-17 04:43:18,409 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:43:18,410 | INFO  | SBA  | stream_query         | Streaming query received | query=Explain personal loan features
+2026-08-17 04:43:18,411 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:43:20,423 | INFO  | SBA  | rag_node             | RAG processing started
+2026-08-17 04:43:20,424 | INFO  | SBA  | hybrid_reranked_search | Hybrid reranked search started 
+2026-08-17 04:43:20,425 | INFO  | SBA  | hybrid_search        | Hybrid search started 
+2026-08-17 04:43:20,426 | INFO  | SBA  | vector_search        | Vector search started | top_k=20
+2026-08-17 04:43:21,574 | INFO  | SBA  | vector_search        | Vector search completed | result_count=20
+2026-08-17 04:43:21,575 | INFO  | SBA  | fts_search           | FTS search started | top_k=20
+2026-08-17 04:43:21,616 | INFO  | SBA  | fts_search           | FTS search completed | result_count=20
+2026-08-17 04:43:21,617 | INFO  | SBA  | rrf_fusion           | RRF fusion completed 
+2026-08-17 04:43:21,618 | INFO  | SBA  | hybrid_search        | Hybrid search completed | vector=20 | fts=20 | rrf_results=20
+2026-08-17 04:43:22,002 | INFO  | SBA  | _generate_rag_answer | RAG answer generation started
+2026-08-17 04:43:25,368 | INFO  | SBA  | _generate_rag_answer | RAG answer generation completed
+2026-08-17 04:43:25,368 | INFO  | SBA  | answer_rag_query     | RAG query completed
+2026-08-17 04:43:25,370 | INFO  | SBA  | rag_node             | RAG processing completed 
+2026-08-17 04:43:25,373 | INFO  | SBA  | decide_rag_retry     | RAG retry requested 
+2026-08-17 04:43:25,375 | INFO  | SBA  | rephrase_query_node  | RAG query rephrase started 
+2026-08-17 04:43:25,376 | INFO  | SBA  | rewrite_query        | Query rewrite started
+2026-08-17 04:43:29,149 | INFO  | SBA  | rewrite_query        | Query rewrite completed | result_length=22
+2026-08-17 04:43:29,149 | INFO  | SBA  | rephrase_query_node  | ============================================================
+2026-08-17 04:43:29,151 | INFO  | SBA  | rephrase_query_node  |    Rewritten_query :personal loan features
+2026-08-17 04:43:29,151 | INFO  | SBA  | rephrase_query_node  | ============================================================
+2026-08-17 04:43:29,155 | INFO  | SBA  | rag_node             | RAG processing started
+2026-08-17 04:43:29,156 | INFO  | SBA  | hybrid_reranked_search | Hybrid reranked search started 
+2026-08-17 04:43:29,157 | INFO  | SBA  | hybrid_search        | Hybrid search started 
+2026-08-17 04:43:29,157 | INFO  | SBA  | vector_search        | Vector search started | top_k=20
+2026-08-17 04:43:29,727 | INFO  | SBA  | vector_search        | Vector search completed | result_count=20
+2026-08-17 04:43:29,727 | INFO  | SBA  | fts_search           | FTS search started | top_k=20
+2026-08-17 04:43:29,771 | INFO  | SBA  | fts_search           | FTS search completed | result_count=20
+2026-08-17 04:43:29,772 | INFO  | SBA  | rrf_fusion           | RRF fusion completed 
+2026-08-17 04:43:29,773 | INFO  | SBA  | hybrid_search        | Hybrid search completed | vector=20 | fts=20 | rrf_results=20
+2026-08-17 04:43:30,141 | INFO  | SBA  | _generate_rag_answer | RAG answer generation started
+2026-08-17 04:43:34,504 | INFO  | SBA  | _generate_rag_answer | RAG answer generation completed
+2026-08-17 04:43:34,505 | INFO  | SBA  | answer_rag_query     | RAG query completed
+2026-08-17 04:43:34,506 | INFO  | SBA  | rag_node             | RAG processing completed 
+2026-08-17 04:43:34,510 | INFO  | SBA  | merge_node           | Merge node started | route=rag
+2026-08-17 04:43:34,511 | INFO  | SBA  | merge_node           | Merge completed | route=rag
+2026-08-17 04:43:34,705 | INFO  | SBA  | event_generator      | Streaming route selected | route=rag
+2026-08-17 04:43:34,706 | INFO  | SBA  | event_generator      | Starting RAG token streaming
+2026-08-17 04:43:34,708 | INFO  | SBA  | stream_rag_answer    | Streaming RAG query started
+2026-08-17 04:43:34,708 | INFO  | SBA  | hybrid_reranked_search | Hybrid reranked search started 
+2026-08-17 04:43:34,708 | INFO  | SBA  | hybrid_search        | Hybrid search started 
+2026-08-17 04:43:34,709 | INFO  | SBA  | vector_search        | Vector search started | top_k=20
+2026-08-17 04:43:35,260 | INFO  | SBA  | vector_search        | Vector search completed | result_count=20
+2026-08-17 04:43:35,261 | INFO  | SBA  | fts_search           | FTS search started | top_k=20
+2026-08-17 04:43:35,294 | INFO  | SBA  | fts_search           | FTS search completed | result_count=20
+2026-08-17 04:43:35,294 | INFO  | SBA  | rrf_fusion           | RRF fusion completed 
+2026-08-17 04:43:35,296 | INFO  | SBA  | hybrid_search        | Hybrid search completed | vector=20 | fts=20 | rrf_results=20
+2026-08-17 04:43:35,693 | INFO  | SBA  | stream_rag_answer    | Streaming RAG retrieval completed 
+2026-08-17 04:43:38,123 | INFO  | SBA  | stream_rag_answer    | Streaming RAG query completed 
+2026-08-17 04:47:12,543 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:47:12,544 | INFO  | SBA  | stream_query         | Streaming query received | query=Delete all customer accounts
+2026-08-17 04:47:12,545 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:47:14,429 | INFO  | SBA  | classify_query       | Destructive request blocked by input guardrail
+2026-08-17 04:47:14,434 | INFO  | SBA  | small_talks_response_node | Input guardrail blocked request
+2026-08-17 04:47:14,629 | INFO  | SBA  | event_generator      | Streaming route selected | route=small_talks
+2026-08-17 04:48:19,393 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:48:19,393 | INFO  | SBA  | stream_query         | Streaming query received | query=what is customer id for account 1345367 ?
+2026-08-17 04:48:19,395 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:48:21,315 | INFO  | SBA  | process_natural_language_query | Natural-language SQL pipeline started
+2026-08-17 04:48:21,316 | INFO  | SBA  | generate_sql         | SQL generation started
+2026-08-17 04:48:22,834 | INFO  | SBA  | generate_sql         | SQL generation completed
+2026-08-17 04:48:22,835 | INFO  | SBA  | process_natural_language_query | Generated SQL passed validation
+2026-08-17 04:48:22,836 | INFO  | SBA  | execute_sql          | SQL execution started
+2026-08-17 04:48:23,014 | INFO  | SBA  | execute_sql          | SQL execution completed | row_count=1
+2026-08-17 04:48:23,015 | INFO  | SBA  | process_natural_language_query | Natural-language SQL pipeline completed | success=True | row_count=1
+2026-08-17 04:48:23,016 | INFO  | SBA  | sql_node             | SQL processing completed | row_count=1
+2026-08-17 04:48:23,019 | INFO  | SBA  | merge_node           | Merge node started | route=sql
+2026-08-17 04:48:23,019 | INFO  | SBA  | merge_node           | SQL merge state sources=[{'source_type': 'database', 'source_name': 'NorthStar Bank Customer Database'}]
+2026-08-17 04:48:23,021 | INFO  | SBA  | merge_node           | Merge completed | route=sql
+2026-08-17 04:48:23,213 | INFO  | SBA  | event_generator      | Streaming route selected | route=sql
+2026-08-17 04:53:26,013 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:53:26,014 | INFO  | SBA  | stream_query         | Streaming query received | query=what is customer id for account 1345367 ?
+2026-08-17 04:53:26,015 | INFO  | SBA  | stream_query         | ============================================================
+2026-08-17 04:53:27,668 | INFO  | SBA  | process_natural_language_query | Natural-language SQL pipeline started
+2026-08-17 04:53:27,669 | INFO  | SBA  | generate_sql         | SQL generation started
+2026-08-17 04:53:29,708 | INFO  | SBA  | generate_sql         | SQL generation completed
+2026-08-17 04:53:29,708 | INFO  | SBA  | process_natural_language_query | Generated SQL passed validation
+2026-08-17 04:53:29,709 | INFO  | SBA  | execute_sql          | SQL execution started :SELECT
+    account_id,
+    customer_name
+FROM accounts
+WHERE account_id = '1345367'
+LIMIT 100;
+2026-08-17 04:53:29,754 | INFO  | SBA  | execute_sql          | SQL execution completed | row_count=1
+2026-08-17 04:53:29,755 | INFO  | SBA  | process_natural_language_query | Natural-language SQL pipeline completed | success=True | row_count=1
+2026-08-17 04:53:29,756 | INFO  | SBA  | sql_node             | SQL processing completed | row_count=1
+2026-08-17 04:53:29,759 | INFO  | SBA  | merge_node           | Merge node started | route=sql
+2026-08-17 04:53:29,759 | INFO  | SBA  | merge_node           | SQL merge state sources=[{'source_type': 'database', 'source_name': 'NorthStar Bank Customer Database'}]
+2026-08-17 04:53:29,760 | INFO  | SBA  | merge_node           | Merge completed | route=sql
+2026-08-17 04:53:29,954 | INFO  | SBA  | event_generator      | Streaming route selected | route=sql
