@@ -15,6 +15,7 @@ from src.services.rag_service import stream_rag_answer
 
 import json
 
+
 router = APIRouter()
 
 
@@ -274,7 +275,7 @@ async def upload_document(
     """
     Upload a PDF and run the Docling ingestion pipeline.
     """
-
+    
     if not file.filename:
 
         raise HTTPException(
@@ -353,7 +354,8 @@ async def upload_document(
         )
 
         logger.info(
-            "Document ingestion completed | filename=%s | " "chunks_created=%s",
+            "Document ingestion completed | filename=%s | "
+            "chunks_created=%s",
             original_name,
             chunks_created,
         )
@@ -385,7 +387,6 @@ async def upload_document(
 
 # ============================================================
 # Streaming Query Endpoint
-# RAG Token Streaming + Metadata
 # ============================================================
 
 
@@ -394,22 +395,21 @@ def stream_query(
     request: ChatRequest,
 ):
     """
-    Streaming query endpoint.
-
-    Supports:
-    - RAG token streaming
-    - SQL/BOTH/Small talk normal response
-    - Metadata event for sources and confidence
+    Stream LangGraph execution events.
     """
 
     logger.info("=" * 60)
     logger.info(
-        "Streaming query received | query=%s",
+        "Streaming query received |  query :=%s",
         request.query,
     )
-    logger.info("=" * 60)
 
     if not request.query.strip():
+
+        logger.info(
+            "Rejected empty streaming query | session_id=%s",
+            request.session_id,
+        )
 
         raise HTTPException(
             status_code=400,
@@ -421,134 +421,183 @@ def stream_query(
         try:
 
             # ------------------------------------------------
-            # Execute LangGraph
+            # Initial status
             # ------------------------------------------------
 
-            result = agent_graph.invoke(
+            logger.debug(
+                "Streaming processing started | session_id=%s",
+                request.session_id,
+            )
+
+            yield (
+                "event: status\n"
+                "data: " + json.dumps({"message": ("Processing request...")}) + "\n\n"
+            )
+
+            # ------------------------------------------------
+            # Stream graph events
+            # ------------------------------------------------
+
+            for event in agent_graph.stream(
                 build_agent_input(request),
                 config=build_graph_config(request.session_id),
-            )
+                stream_mode="updates",
+            ):
 
-            route = result.get("route")
+                for (
+                    node_name,
+                    node_data,
+                ) in event.items():
 
-            logger.info(
-                "Streaming route selected | route=%s",
-                route,
-            )
-
-            # =================================================
-            # RAG STREAMING
-            # =================================================
-
-            if route == "rag":
-
-                logger.info("Starting RAG token streaming")
-
-                # ---------------------------------------------
-                # Extract sources
-                # ---------------------------------------------
-
-                sources = result.get(
-                    "sources",
-                    [],
-                )
-
-                if not sources:
-
-                    sources = result.get(
-                        "rag_response",
-                        {},
-                    ).get(
-                        "sources",
-                        [],
+                    logger.debug(
+                        "Streaming graph node completed | " "session_id=%s | node=%s",
+                        request.session_id,
+                        node_name,
                     )
 
-                # ---------------------------------------------
-                # Send metadata event
-                # ---------------------------------------------
-
-                yield (
-                    "event: metadata\n"
-                    "data: "
-                    + json.dumps(
-                        {
-                            "sources": sources,
-                            "confidence_score": result.get("retrieval_quality"),
-                            "retry_count": result.get(
-                                "retry_count",
-                                0,
-                            ),
-                        }
-                    )
-                    + "\n\n"
-                )
-
-                # ---------------------------------------------
-                # Stream tokens
-                # ---------------------------------------------
-
-                for token in stream_rag_answer(request.query):
+                    # ----------------------------------------
+                    # Node event
+                    # ----------------------------------------
 
                     yield (
-                        "event: token\n"
-                        "data: " + json.dumps({"token": token}) + "\n\n"
+                        "event: node\n"
+                        "data: "
+                        + json.dumps(
+                            {
+                                "node": node_name,
+                            }
+                        )
+                        + "\n\n"
                     )
 
-            # =================================================
-            # NON RAG RESPONSE
-            # =================================================
+                    # ----------------------------------------
+                    # Route
+                    # ----------------------------------------
 
-            else:
+                    if node_name == "classifier":
 
-                final_response = result.get(
-                    "final_response",
-                    "",
-                )
+                        route = node_data.get("route")
 
-                sql_response = result.get(
-                    "sql_response",
-                    {},
-                ).get(
-                    "rows",
-                    [],
-                )
+                        if route:
 
-                yield (
-                    "event: answer\n"
-                    "data: "
-                    + json.dumps(
-                        {
-                            "answer": final_response,
-                            "route": route,
-                            "sql_result": sql_response,
-                            "sources": result.get(
-                                "sources",
-                                [],
-                            ),
-                            "confidence_score": result.get("retrieval_quality"),
-                            "retry_count": result.get(
-                                "retry_count",
-                                0,
-                            ),
-                        },
-                        default=str,
-                    )
-                    + "\n\n"
-                )
+                            logger.info(
+                                "Streaming route selected | " "route=%s",
+                                route,
+                            )
 
-            # =================================================
-            # Completed
-            # =================================================
+                            yield (
+                                "event: status\n"
+                                "data: "
+                                + json.dumps(
+                                    {
+                                        "message": (f"Route selected: " f"{route}"),
+                                        "route": route,
+                                    }
+                                )
+                                + "\n\n"
+                            )
+
+                    # ----------------------------------------
+                    # Query rephrase
+                    # ----------------------------------------
+
+                    if node_name == "rephrase":
+
+                        rewritten_query = node_data.get("rewritten_query")
+
+                        if rewritten_query:
+
+                            logger.info("Streaming RAG query rewritten ")
+
+                            yield (
+                                "event: status\n"
+                                "data: "
+                                + json.dumps(
+                                    {
+                                        "message": (
+                                            "Retrying with " "rewritten query..."
+                                        ),
+                                        "rewritten_query": rewritten_query,
+                                    }
+                                )
+                                + "\n\n"
+                            )
+
+                    # ----------------------------------------
+                    # RAG retrieval
+                    # ----------------------------------------
+
+                    if node_name == "rag":
+
+                        retrieval_quality = node_data.get("retrieval_quality")
+
+                        retry_count = node_data.get(
+                            "retry_count",
+                            0,
+                        )
+
+                        logger.info("Streaming RAG completed ")
+
+                        yield (
+                            "event: retrieval\n"
+                            "data: "
+                            + json.dumps(
+                                {
+                                    "retrieval_quality": retrieval_quality,
+                                    "retry_count": retry_count,
+                                }
+                            )
+                            + "\n\n"
+                        )
+
+                    # ----------------------------------------
+                    # Final response
+                    # ----------------------------------------
+
+                    if node_name in {
+                        "merge",
+                        "small_talks",
+                    }:
+
+                        final_response = node_data.get("final_response")
+
+                        if final_response:
+
+                            logger.debug(
+                                "Streaming final response generated | "
+                                "session_id=%s | node=%s",
+                                request.session_id,
+                                node_name,
+                            )
+
+                            yield (
+                                "event: answer\n"
+                                "data: "
+                                + json.dumps({"answer": final_response})
+                                + "\n\n"
+                            )
+
+            # ------------------------------------------------
+            # Done
+            # ------------------------------------------------
+
+            logger.info("Streaming query completed")
 
             yield (
                 "event: done\n" "data: " + json.dumps({"status": "completed"}) + "\n\n"
             )
 
-        except Exception as exc:
+        except Exception:
 
-            logger.exception("Streaming query failed")
+            logger.exception(
+                "Streaming query failed | session_id=%s",
+                request.session_id,
+            )
 
-            yield ("event: error\n" "data: " + json.dumps({"error": str(exc)}) + "\n\n")
+            yield (
+                "event: error\n"
+                "data: " + json.dumps({"error": "Streaming query failed."}) + "\n\n"
+            )
 
     return StreamingResponse(
         event_generator(),

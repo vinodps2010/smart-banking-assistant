@@ -3,83 +3,193 @@ import uuid
 
 from api_client import api_client
 
+# ============================================================
+# Page Configuration
+# ============================================================
+
 st.set_page_config(
-    page_title="Banking Assistant",
-    page_icon="💬",
+    page_title="NorthStar Bank - Smart Banking Assistant",
+    page_icon="🏦",
     layout="wide",
 )
 
 
-# ---------------------------------------------------------
-# Hide Streamlit default navigation
-# ---------------------------------------------------------
+# ============================================================
+# Page Styling
+# ============================================================
 
 st.markdown(
     """
     <style>
-        [data-testid="stSidebarNav"] {
-            display: none;
-        }
+
+    /* Main background */
+
+    .stApp {
+        background-color: #eef6ff;
+    }
+
+
+    /* NorthStar header */
+
+    .northstar-header {
+
+        background-color: #0b3d91;
+        color: white;
+
+        padding: 15px;
+        border-radius: 10px;
+
+        text-align: center;
+
+        font-size: 26px;
+        font-weight: bold;
+
+        margin-bottom: 20px;
+
+    }
+
+
+    .northstar-subtitle {
+
+        text-align: center;
+
+        color: #1f4e79;
+
+        font-size: 16px;
+
+        margin-bottom: 25px;
+
+    }
+
+
+
+    /* User message */
+
+    .user-message {
+
+        background-color: #d9fdd3;
+
+        padding: 12px;
+
+        border-radius: 12px;
+
+        margin-bottom: 10px;
+
+    }
+
+
+
+    /* Assistant message */
+
+    .assistant-message {
+
+        background-color: #dbeafe;
+
+        padding: 12px;
+
+        border-radius: 12px;
+
+        margin-bottom: 10px;
+
+    }
+
+
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 
-st.title("💬 Smart Banking Assistant")
+# ============================================================
+# Sidebar Navigation
+# ============================================================
 
-st.caption(
-    "Ask any banking question. The AI agent will automatically "
-    "decide whether to use RAG, RDBMS, or both."
-)
+with st.sidebar:
+
+    st.title("🏦 NorthStar Bank")
+
+    st.caption("Smart Banking Assistant")
+
+    st.divider()
+
+    st.subheader("Navigation")
+
+    st.page_link(
+        "app.py",
+        label="Home",
+        icon="🏠",
+        use_container_width=True,
+    )
+
+    st.page_link(
+        "pages/chat.py",
+        label="Banking Assistant",
+        icon="💬",
+        use_container_width=True,
+    )
+
+    st.page_link(
+        "pages/upload.py",
+        label="Document Upload",
+        icon="📄",
+        use_container_width=True,
+    )
+
+    st.divider()
+
+    st.caption("Powered by AI • RAG • NL-to-SQL • LangGraph")
 
 
-# ---------------------------------------------------------
-# Session State
-# ---------------------------------------------------------
+# ============================================================
+# Session State Initialization
+# ============================================================
 
 if "messages" not in st.session_state:
+
     st.session_state.messages = []
 
 
 if "session_id" not in st.session_state:
+
     st.session_state.session_id = str(uuid.uuid4())
 
 
-# ---------------------------------------------------------
+# ============================================================
 # Helper Functions
-# ---------------------------------------------------------
+# ============================================================
 
 
-def format_route(route):
+def clear_chat():
 
-    if not route:
-        return "Unknown"
+    st.session_state.messages = []
 
-    route = str(route).lower()
-
-    mapping = {
-        "rag": "RAG",
-        "sql": "SQL",
-        "rdbms": "SQL",
-        "both": "RAG + SQL",
-    }
-
-    return mapping.get(route, route.upper())
+    st.session_state.session_id = str(uuid.uuid4())
 
 
-def display_sources(sources):
-
+def display_sources(
+    sources,
+    route=None,
+    confidence_score=None,
+    retry_count=None,
+):
     if not sources:
+
         return
 
-    st.markdown("#### Sources")
+    with st.expander(
+        "📚 Sources",
+        expanded=False,
+    ):
 
-    for source in sources:
+        documents = {}
 
-        if isinstance(source, dict):
+        for source in sources:
 
-            document = source.get(
+            if source.get("source_type") == "database":
+                st.markdown(f"🗄️ **{source.get('source_name')}**")
+                continue
+
+            document_name = source.get(
                 "document_name",
                 "Unknown",
             )
@@ -89,117 +199,154 @@ def display_sources(sources):
                 "N/A",
             )
 
-            chunk_type = source.get(
-                "chunk_type",
-                "unknown",
-            )
+            if document_name not in documents:
 
-            score = source.get("score")
+                documents[document_name] = set()
 
-            text = f"• **{document}** " f"— Page {page} " f"— {chunk_type}"
+            documents[document_name].add(str(page))
 
-            if score is not None:
-                text += f" — score: {score:.3f}"
+        for document, pages in documents.items():
 
-            st.markdown(text)
+            st.markdown(f"""
+                📄 **{document}**
 
-        else:
-            st.write(f"• {source}")
+                Pages: {", ".join(sorted(pages))}
+                """)
+
+        if route:
+            st.caption(f"Route: {route.upper()}")
+
+        if confidence_score is not None:
+            st.caption(f"Confidence Score: {confidence_score:.0%}")
+
+        if retry_count is not None:
+            st.caption(f"Retry Count: {retry_count}")
+
+
+def display_sql_result(sql_result):
+
+    if not sql_result:
+
+        return
+
+    st.subheader("🗄️ Query Result")
+
+    st.dataframe(
+        sql_result,
+        use_container_width=True,
+    )
 
 
 def display_response_details(message):
 
-    route = message.get("route") or message.get("query_path")
-
-    st.write(f"**Query Path:** {format_route(route)}")
-
     confidence = message.get("confidence_score")
-
-    if confidence is not None:
-
-        st.write(f"**Confidence Score:** " f"{confidence:.0%}")
 
     retry_count = message.get(
         "retry_count",
         0,
     )
 
-    st.write(f"**Retry Count:** {retry_count}")
+    if confidence is not None:
 
-    sql_query = message.get("sql_query")
+        st.caption(f"Confidence Score: {confidence:.0%}")
 
-    if sql_query:
+    # st.caption(f"Retry Count: {retry_count}")
 
-        st.markdown("#### Generated SQL")
-
-        st.code(
-            sql_query,
-            language="sql",
-        )
-
-    sql_result = message.get("sql_result")
-
-    if sql_result:
-
-        st.markdown("#### SQL Result")
-
-        st.dataframe(
-            sql_result,
-            use_container_width=True,
-            hide_index=True,
-        )
-
-    sources = message.get("sources") or message.get("citations") or []
-
-    display_sources(sources)
+    if message.get("route") in ["rag", "sql", "both"]:
+        st.caption(f"Retry Count: {retry_count}")
 
 
-# ---------------------------------------------------------
-# Clear Chat
-# ---------------------------------------------------------
+# ============================================================
+# Header
+# ============================================================
 
-if st.button("🗑️ Clear Chat"):
+st.markdown(
+    """
+    <div class="northstar-header">
 
-    st.session_state.messages = []
+    🏦 NorthStar Bank<br>
 
-    st.session_state.session_id = str(uuid.uuid4())
+    Smart Banking Assistant
 
-    st.rerun()
+    </div>
 
 
-# ---------------------------------------------------------
-# Display Previous Messages
-# ---------------------------------------------------------
+    <div class="northstar-subtitle">
+
+    Your AI-powered assistant for accounts,
+    loans, credit cards, deposits,
+    transactions and banking policies.
+
+    </div>
+
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ============================================================
+# Clear Chat Button
+# ============================================================
+
+col1, col2 = st.columns([8, 1])
+
+
+with col2:
+
+    if st.button(
+        "🗑️ Clear",
+    ):
+
+        clear_chat()
+
+        st.rerun()
+
+
+# ============================================================
+# Display Previous Conversation
+# ============================================================
 
 for message in st.session_state.messages:
 
-    with st.chat_message(message["role"]):
+    if message["role"] == "user":
 
-        st.markdown(message["content"])
+        with st.chat_message("user"):
 
-        if message["role"] == "assistant":
+            st.markdown(message["content"])
 
-            with st.expander("🔍 Response Details"):
+    else:
 
-                display_response_details(message)
+        with st.chat_message("assistant"):
+
+            st.markdown(message["content"])
+
+            display_sql_result(
+                message.get(
+                    "sql_result",
+                    [],
+                )
+            )
+
+            display_sources(
+                message.get("sources", []),
+                message.get("route"),
+                message.get("confidence_score"),
+                message.get("retry_count"),
+            )
 
 
-# ---------------------------------------------------------
+# ============================================================
 # User Input
-# ---------------------------------------------------------
+# ============================================================
 
-prompt = st.chat_input("Ask your banking question...")
+prompt = st.chat_input("Ask your NorthStar Bank question...")
 
-
-# ---------------------------------------------------------
-# Process Query
-# ---------------------------------------------------------
 
 if prompt:
 
-    with st.chat_message("user"):
-
-        st.markdown(prompt)
+    # --------------------------------------------------------
+    # Store User Message
+    # --------------------------------------------------------
 
     st.session_state.messages.append(
         {
@@ -208,61 +355,129 @@ if prompt:
         }
     )
 
+    with st.chat_message("user"):
+
+        st.markdown(prompt)
+
+    # --------------------------------------------------------
+    # Assistant Response
+    # --------------------------------------------------------
+
     with st.chat_message("assistant"):
 
-        with st.spinner("Analyzing your question..."):
+        answer_text = ""
 
-            result = api_client.query_assistant(
+        response_metadata = {}
+
+        def stream_response():
+
+            for event in api_client.stream_query(
                 query=prompt,
-                session_id=(st.session_state.session_id),
-            )
+                session_id=st.session_state.session_id,
+            ):
 
-        if not result.get(
-            "success",
-            False,
-        ):
+                event_type = event.get("type")
 
-            answer = (
-                "⚠️ Unable to process your request.\n\n" f"Error: {result.get('error')}"
-            )
+                # --------------------------------------------
+                # RAG Token Streaming
+                # --------------------------------------------
 
-            st.error(answer)
+                if event_type == "token":
 
-            assistant_message = {
-                "role": "assistant",
-                "content": answer,
-            }
+                    token = event.get(
+                        "value",
+                        "",
+                    )
 
-        else:
+                    if token:
 
-            answer = result.get(
-                "answer",
-                "No answer returned.",
-            )
+                        yield token
 
-            st.markdown(answer)
+                # --------------------------------------------
+                # metadata
+                # --------------------------------------------
 
-            assistant_message = {
-                "role": "assistant",
-                "content": answer,
-                # backend fields
-                "route": result.get("route"),
-                "query_path": result.get("route"),
-                "confidence_score": result.get("confidence_score"),
-                "retry_count": result.get(
-                    "retry_count",
-                    0,
-                ),
-                "sql_query": result.get("sql_query"),
-                "sql_result": result.get("sql_result"),
-                "sources": result.get(
-                    "sources",
-                    [],
-                ),
-            }
+                elif event_type == "metadata":
 
-            with st.expander("🔍 Response Details"):
+                    response_metadata.update(
+                        {
+                            "route": event.get("route"),
+                            "sources": event.get("sources", []),
+                            "confidence_score": event.get("confidence_score"),
+                            "retry_count": event.get("retry_count", 0),
+                        }
+                    )
+                # --------------------------------------------
+                # SQL / BOTH / Small Talk
+                # --------------------------------------------
 
-                display_response_details(assistant_message)
+                elif event_type == "answer":
 
-        st.session_state.messages.append(assistant_message)
+                    response_metadata.update(event)
+
+                    yield event.get(
+                        "value",
+                        "",
+                    )
+
+                # --------------------------------------------
+                # Error
+                # --------------------------------------------
+
+                elif event_type == "error":
+
+                    yield (
+                        "\n\n⚠️ "
+                        + event.get(
+                            "value",
+                            "Unknown error",
+                        )
+                    )
+
+        try:
+
+            answer_text = st.write_stream(stream_response())
+
+        except Exception as exc:
+
+            answer_text = "⚠️ Unable to process request.\n\n" + str(exc)
+
+            st.error(answer_text)
+
+    # --------------------------------------------------------
+    # Save Assistant Message
+    # --------------------------------------------------------
+
+    assistant_message = {
+        "role": "assistant",
+        "content": answer_text,
+        "route": response_metadata.get(
+            "route",
+            "rag",
+        ),
+        "query_path": response_metadata.get(
+            "route",
+            "rag",
+        ),
+        "source": response_metadata.get(
+            "route",
+            "rag",
+        ),
+        "confidence_score": response_metadata.get("confidence_score"),
+        "retry_count": response_metadata.get(
+            "retry_count",
+            0,
+        ),
+        "sources": response_metadata.get(
+            "sources",
+            [],
+        ),
+        "sql_result": response_metadata.get(
+            "sql_result",
+            [],
+        ),
+    }
+
+    st.session_state.messages.append(assistant_message)
+
+    st.rerun()

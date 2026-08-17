@@ -62,3 +62,15 @@ CREATE INDEX IF NOT EXISTS multimodal_chunks_embedding_idx
 ON multimodal_chunks
 USING ivfflat (embedding vector_cosine_ops)
 WITH (lists = 100);
+
+CREATE INDEX IF NOT EXISTS idx_multimodal_chunks_content_fts
+ON multimodal_chunks
+USING GIN (to_tsvector('english', content));
+
+-- prevent duplicate file upload 
+ALTER TABLE documents
+ADD COLUMN IF NOT EXISTS file_hash VARCHAR(64);
+
+CREATE UNIQUE INDEX IF NOT EXISTS
+idx_documents_file_hash
+ON documents(file_hash);
