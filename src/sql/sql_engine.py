@@ -260,7 +260,7 @@ def execute_sql(
     Validate and execute a SQL query.
     """
 
-    logger.info("SQL execution started")
+    logger.info("SQL execution started :%s", sql)
 
     # --------------------------------------------------------
     # Validate

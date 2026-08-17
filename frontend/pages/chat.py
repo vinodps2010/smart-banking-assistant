@@ -15,6 +15,22 @@ st.set_page_config(
 
 
 # ============================================================
+# Hide Streamlit Default Page Navigation
+# ============================================================
+
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebarNav"] {
+            display: none;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ============================================================
 # Page Styling
 # ============================================================
 
@@ -25,41 +41,29 @@ st.markdown(
     /* Main background */
 
     .stApp {
-        background-color: #eef6ff;
     }
 
 
     /* NorthStar header */
 
-    .northstar-header {
+    /* -------------------------------------------------------
+       Fixed Streamlit Header Branding
+    ------------------------------------------------------- */
 
-        background-color: #0b3d91;
-        color: white;
-
-        padding: 15px;
-        border-radius: 10px;
-
-        text-align: center;
-
-        font-size: 26px;
-        font-weight: bold;
-
-        margin-bottom: 20px;
-
+    header[data-testid="stHeader"]::before {
+        content: "🏦 NorthStar Bank  —  Smart Banking Assistant";
+        position: absolute;
+        left: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        white-space: nowrap;
+        pointer-events: none;
+        
     }
 
-
-    .northstar-subtitle {
-
-        text-align: center;
-
-        color: #1f4e79;
-
-        font-size: 16px;
-
-        margin-bottom: 25px;
-
-    }
 
 
 
@@ -257,30 +261,17 @@ def display_response_details(message):
 
 
 # ============================================================
-# Header
+# NorthStar Bank Header
 # ============================================================
 
-st.markdown(
-    """
-    <div class="northstar-header">
+st.title("🏦 NorthStar Bank")
 
-    🏦 NorthStar Bank<br>
+st.subheader("Smart Banking Assistant")
 
-    Smart Banking Assistant
-
-    </div>
-
-
-    <div class="northstar-subtitle">
-
-    Your AI-powered assistant for accounts,
-    loans, credit cards, deposits,
-    transactions and banking policies.
-
-    </div>
-
-    """,
-    unsafe_allow_html=True,
+st.caption(
+    "Your AI-powered assistant for NorthStar Bank "
+    "accounts, loans, credit cards, deposits, "
+    "transactions, eligibility, and banking policies."
 )
 
 
