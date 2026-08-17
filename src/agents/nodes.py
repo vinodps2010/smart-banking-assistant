@@ -1,239 +1,582 @@
 """
 LangGraph agent nodes for Smart Banking Assistant.
 
-
 Nodes:
-1. classify_query
-2. rag_node
-3. rephrase_query_node
-4. sql_node
-5. merge_node
+1. small_talks_response_node
+2. classify_query
+3. rag_node
+4. decide_rag_retry
+5. rephrase_query_node
+6. sql_node
+7. both_node
+8. merge_node
 """
 
-
 from src.agents.state import AgentState
-
 
 from src.services.rag_service import (
     answer_rag_query,
 )
 
-
 from src.services.sql_service import (
     answer_sql_query,
 )
-
 
 from src.agents.query_rewriter import (
     rewrite_query,
 )
 
+from langchain_core.messages import (
+    HumanMessage,
+    AIMessage,
+)
+
+from openai import OpenAI
+
+from src.common.config import (
+    OPENAI_API_KEY,
+    OPENAI_MODEL,
+)
+
+from src.common.logger import logger
+
+client = OpenAI(
+    api_key=OPENAI_API_KEY,
+)
+
 
 # ============================================================
-# Query Classifier
+# Conversation Memory Detection
 # ============================================================
 
 
+def is_memory_question(
+    query: str,
+) -> bool:
+    """
+    Detect questions that refer to previous conversation.
+    """
+
+    memory_keywords = [
+        "what is my",
+        "what's my",
+        "what did i",
+        "did i tell you",
+        "do you remember",
+        "remember what",
+        "what was",
+        "what were",
+        "earlier",
+        "previous",
+        "we discussed",
+        "you mentioned",
+        "i mentioned",
+        "who am i",
+    ]
+
+    query_lower = query.lower()
+
+    return any(keyword in query_lower for keyword in memory_keywords)
+
+
+# ============================================================
+# Conversation Memory Answer
+# ============================================================
+
+
+def answer_from_conversation_memory(
+    query: str,
+    messages: list,
+) -> str:
+    """
+    Answer the current question using previous conversation
+    stored in LangGraph state.
+
+    No RAG or SQL is used.
+    """
+
+    if not messages:
+
+        return "I don't have any previous conversation context " "available yet."
+
+    conversation_parts = []
+
+    for message in messages:
+
+        if isinstance(
+            message,
+            HumanMessage,
+        ):
+
+            role = "User"
+
+        elif isinstance(
+            message,
+            AIMessage,
+        ):
+
+            role = "Assistant"
+
+        else:
+
+            continue
+
+        content = getattr(
+            message,
+            "content",
+            "",
+        )
+
+        if content:
+
+            conversation_parts.append(f"{role}: {content}")
+
+    conversation = "\n".join(conversation_parts)
+
+    prompt = f"""
+You are the conversation-memory component of
+NorthStar Bank Smart Assistant.
+
+Use ONLY the previous conversation to answer
+the user's current question.
+
+Previous conversation:
+----------------------
+
+{conversation}
+
+Current user question:
+----------------------
+
+{query}
+
+Rules:
+
+1. Do not use outside knowledge.
+2. Do not use the banking knowledge base.
+3. Do not use SQL.
+4. Answer only from information present in
+   the previous conversation.
+5. If the information was mentioned previously,
+   answer it clearly and naturally.
+6. If the information was not mentioned previously,
+   politely say that you do not have that information
+   in this conversation.
+7. Do not mention prompts, tools, checkpoints,
+   retrieval, or internal processing.
+"""
+
+    try:
+
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": prompt,
+                }
+            ],
+            max_completion_tokens=100,
+        )
+
+        answer = (
+            response.choices[0].message.content
+            or "I couldn't find that information in our previous conversation."
+        )
+
+        return answer
+
+    except Exception:
+
+        logger.exception(
+            "Conversation memory LLM call failed",
+        )
+
+        raise
+
+
+# ============================================================
+# Small Talks / Conversation Memory Response Node
+# ============================================================
+
+
+def small_talks_response_node(
+    state: AgentState,
+):
+    """
+    Handle conversational requests.
+
+    This node has two responsibilities:
+
+    1. FAST PATH
+       Handle obvious small-talk queries without an LLM.
+
+    2. CLASSIFIED PATH
+       Handle queries already classified by the Intent LLM
+       as small_talks.
+
+    The same node is therefore used before and after
+    intent classification.
+    """
+
+    query = state["query"].lower().strip()
+
+    messages = state.get(
+        "messages",
+        [],
+    )
+
+    guardrail = state.get(
+        "guardrail",
+        "allow",
+    )
+
+    fast_checked = state.get(
+        "fast_small_talk_checked",
+        False,
+    )
+
+    # ========================================================
+    # FAST SMALL-TALK PATH
+    # ========================================================
+
+    if not fast_checked:
+
+        # ----------------------------------------------------
+        # Conversation memory fast path
+        # ----------------------------------------------------
+
+        if is_memory_question(query):
+
+            response = answer_from_conversation_memory(
+                query=query,
+                messages=messages,
+            )
+
+            return {
+                "route": "small_talks",
+                "guardrail": "allow",
+                "fast_small_talk_checked": True,
+                "final_response": response,
+                "messages": [AIMessage(content=response)],
+            }
+        # ----------------------------------------------------
+        # Exact greetings
+        # ----------------------------------------------------
+
+        if query in {
+            "hi",
+            "hello",
+            "hey",
+            "good morning",
+            "good afternoon",
+            "good evening",
+        }:
+
+            response = (
+                "Hello! Welcome to NorthStar Bank Smart Assistant. "
+                "How can I help you today?"
+            )
+
+            return {
+                "route": "small_talks",
+                "guardrail": "allow",
+                "fast_small_talk_checked": True,
+                "final_response": response,
+                "messages": [AIMessage(content=response)],
+            }
+
+        # ----------------------------------------------------
+        # Thanks
+        # ----------------------------------------------------
+
+        if query in {
+            "thanks",
+            "thank you",
+            "thankyou",
+        }:
+
+            response = (
+                "You're very welcome! 😊 "
+                "Please let me know if you need any banking assistance."
+            )
+
+            return {
+                "route": "small_talks",
+                "guardrail": "allow",
+                "fast_small_talk_checked": True,
+                "final_response": response,
+                "messages": [AIMessage(content=response)],
+            }
+
+        # ----------------------------------------------------
+        # How are you
+        # ----------------------------------------------------
+
+        if "how are you" in query:
+
+            response = (
+                "I'm doing well, thank you! "
+                "I'm here to help with your banking needs."
+            )
+
+            return {
+                "route": "small_talks",
+                "guardrail": "allow",
+                "fast_small_talk_checked": True,
+                "final_response": response,
+                "messages": [AIMessage(content=response)],
+            }
+
+        # ----------------------------------------------------
+        # Who are you
+        # ----------------------------------------------------
+
+        if "who are you" in query:
+
+            response = (
+                "I'm the NorthStar Bank Smart Assistant. "
+                "I can help with loans, accounts, credit cards, "
+                "fixed deposits, eligibility, charges, and "
+                "banking policies."
+            )
+
+            return {
+                "route": "small_talks",
+                "guardrail": "allow",
+                "fast_small_talk_checked": True,
+                "final_response": response,
+                "messages": [AIMessage(content=response)],
+            }
+
+        # ----------------------------------------------------
+        # What can you do
+        # ----------------------------------------------------
+
+        if "what can you do" in query:
+
+            response = (
+                "I can help you with NorthStar Bank services such as "
+                "loans, accounts, credit cards, fixed deposits, "
+                "eligibility, charges, transactions, and banking policies."
+            )
+
+            return {
+                "route": "small_talks",
+                "guardrail": "allow",
+                "fast_small_talk_checked": True,
+                "final_response": response,
+                "messages": [AIMessage(content=response)],
+            }
+
+        # ----------------------------------------------------
+        # No obvious match
+        # ----------------------------------------------------
+
+        return {
+            "route": "continue",
+            "fast_small_talk_checked": True,
+        }
+
+    # ========================================================
+    # CLASSIFIED SMALL-TALK PATH
+    # ========================================================
+
+    # --------------------------------------------------------
+    # Guardrail: BLOCK
+    # --------------------------------------------------------
+
+    if guardrail == "block":
+
+        logger.info(
+            "Input guardrail blocked request",
+        )
+
+        response = (
+            "I'm sorry, but I can't help with requests that "
+            "would delete, modify, or otherwise alter customer "
+            "or banking data."
+        )
+
+        return {
+            "route": "small_talks",
+            "final_response": response,
+            "messages": [AIMessage(content=response)],
+        }
+
+    # --------------------------------------------------------
+    # Guardrail: REDIRECT
+    # --------------------------------------------------------
+
+    if guardrail == "redirect":
+
+        response = (
+            "I'd be happy to assist you with NorthStar Bank "
+            "banking services, including accounts, loans, "
+            "credit cards, deposits, eligibility, charges, "
+            "and banking policies."
+        )
+
+        return {
+            "route": "small_talks",
+            "final_response": response,
+            "messages": [AIMessage(content=response)],
+        }
+
+    # ========================================================
+    # CONVERSATION MEMORY
+    # ========================================================
+
+    if is_memory_question(query):
+
+        response = answer_from_conversation_memory(
+            query=query,
+            messages=messages,
+        )
+
+        return {
+            "route": "small_talks",
+            "final_response": response,
+            "messages": [AIMessage(content=response)],
+        }
+
+    # ========================================================
+    # USER INTRODUCTION
+    # ========================================================
+
+    if "my name is" in query:
+
+        name = query.split(
+            "my name is",
+            1,
+        )[1].strip()
+
+        name = name.title()
+
+        response = f"Nice to meet you, {name}! " "How can I help you today?"
+
+        return {
+            "route": "small_talks",
+            "final_response": response,
+            "messages": [AIMessage(content=response)],
+        }
+
+    # --------------------------------------------------------
+    # I am ...
+    # --------------------------------------------------------
+
+    if query.startswith("i am "):
+
+        name = query[len("i am ") :].strip()
+
+        response = f"Nice to meet you, {name.title()}! " "How can I assist you today?"
+
+        return {
+            "route": "small_talks",
+            "final_response": response,
+            "messages": [AIMessage(content=response)],
+        }
+
+    # --------------------------------------------------------
+    # I'm ...
+    # --------------------------------------------------------
+
+    if query.startswith("i'm "):
+
+        name = query[len("i'm ") :].strip()
+
+        response = f"Nice to meet you, {name.title()}! " "How can I assist you today?"
+
+        return {
+            "route": "small_talks",
+            "final_response": response,
+            "messages": [AIMessage(content=response)],
+        }
+
+    # ========================================================
+    # PERSONAL FACT
+    # ========================================================
+
+    if query.startswith("my ") and " is " in query:
+
+        response = "Got it! I'll remember that for this conversation. 😊"
+
+        return {
+            "route": "small_talks",
+            "final_response": response,
+            "messages": [AIMessage(content=response)],
+        }
+
+    # ========================================================
+    # GENERIC CONVERSATIONAL FALLBACK
+    # ========================================================
+
+    response = (
+        "I'd be happy to assist you. 😊 "
+        "I'm here to help with NorthStar Bank banking "
+        "services, including loans, accounts, credit cards, "
+        "fixed deposits, eligibility, charges, and banking "
+        "policies."
+    )
+
+    return {
+        "route": "small_talks",
+        "final_response": response,
+        "messages": [AIMessage(content=response)],
+    }
+
+
+# ============================================================
+# Query Classifier + Input Guardrail
+# ============================================================
 
 
 def classify_query(
     state: AgentState,
 ):
     """
-    Decide whether query should use:
+    Use an LLM to determine the best processing route.
 
+    This node is reached only when the fast small-talk
+    check did not recognize the query.
 
-    - RAG
-    - SQL
-    - BOTH
+    The classifier returns one of:
+
+        allow|small_talks
+        allow|rag
+        allow|sql
+        allow|both
+        redirect|small_talks
+        block|small_talks
     """
 
+    query = state["query"].strip()
 
-    query = state["query"].lower()
+    # --------------------------------------------------------
+    # Intent + Guardrail Prompt
+    # --------------------------------------------------------
 
+    classifier_prompt = """
+You are the intent classifier and first-level input
+guardrail for the NorthStar Bank Smart Assistant.
 
-    sql_keywords = [
-        "account",
-        "transaction",
-        "balance",
-        "amount",
-        "statement",
-        "withdrawal",
-        "deposit",
-        "loan outstanding",
-        "emi",
-        "customer",
-    ]
+Determine the best processing route for the complete
+meaning of the user's request.
 
+You MUST return exactly ONE line using:
 
-    rag_keywords = [
-        "policy",
-        "eligibility",
-        "criteria",
-        "rate",
-        "charge",
-        "document",
-        "requirement",
-        "interest",
-        "product",
-    ]
+guardrail|route
 
 
-    if any(keyword in query for keyword in sql_keywords):
+Allowed outputs:
 
+allow|small_talks
+allow|rag
+allow|sql
+allow|both
+redirect|small_talks
+block|small_talks
 
-        route = "sql"
-
-
-    elif any(keyword in query for keyword in rag_keywords):
-
-
-        route = "rag"
-
-
-    else:
-
-
-        # Default to RAG
-        route = "rag"
-
-
-    print(f"[agent] Route selected: {route}")
-
-
-    return {
-        "route": route,
-        "original_query": state.get(
-            "original_query",
-            state["query"],
-        ),
-        "retry_count": state.get(
-            "retry_count",
-            0,
-        ),
-        "max_retries": state.get(
-            "max_retries",
-            1,
-        ),
-    }
-
-
-
-
-# ============================================================
-# RAG Node
-# ============================================================
-
-
-
-
-def rag_node(
-    state: AgentState,
-):
-    """
-    Execute Hybrid Search + RRF +
-    Cohere Reranking RAG pipeline.
-
-
-    If retrieval quality is poor,
-    mark retry_required=True.
-    """
-
-
-    query = state.get("rewritten_query") or state["query"]
-
-
-    result = answer_rag_query(query)
-
-
-    retry_count = state.get(
-        "retry_count",
-        0,
-    )
-
-
-    return {
-        "rag_response": result,
-        "sources": result.get(
-            "sources",
-            [],
-        ),
-        "retrieval_quality": result.get(
-            "retrieval_quality",
-            0.0,
-        ),
-        "retry_required": result.get(
-            "retry_required",
-            False,
-        ),
-        "retry_count": retry_count,
-    }
-
-
-
-
-# ============================================================
-# RAG Retry Decision
-# ============================================================
-
-
-
-
-def decide_rag_retry(
-    state: AgentState,
-):
-    """
-    Decide whether RAG should retry
-    with rewritten query.
-    """
-
-
-    retry_required = state.get(
-        "retry_required",
-        False,
-    )
-
-
-    retry_count = state.get(
-        "retry_count",
-        0,
-    )
-
-
-    max_retries = state.get(
-        "max_retries",
-        1,
-    )
-
-
-    if retry_required and retry_count < max_retries:
-
-
-        return "retry"
-
-
-    return "finish"
-
-
-
-
-# ============================================================
-# Query Rephrase Node
-# ============================================================
-
-
-
-
-def rephrase_query_node(
-    state: AgentState,
-):
-    """
-    Rewrite weak retrieval query.
-
-
-    Uses previous retrieved context
-    to generate a better search query.
-    """
 
 
     rag_response = state.get(
@@ -241,125 +584,16 @@ def rephrase_query_node(
         {},
     )
 
-
-    sources = rag_response.get(
-        "sources",
-        [],
+    final_response = rag_response.get(
+        "answer",
+        "No response available.",
     )
 
-
-    context_parts = []
-
-
-    for source in sources[:5]:
-
-
-        context_parts.append(
-            source.get(
-                "content",
-                "",
-            )
-        )
-
-
-    context = "\n\n".join(context_parts)
-
-
-    rewritten_query = rewrite_query(
-        query=state["query"],
-        context=context,
+    logger.info(
+        "Merge completed | route=rag",
     )
-
-
-    print(
-        "[agent] Rewritten query:",
-        rewritten_query,
-    )
-
 
     return {
-        "rewritten_query": rewritten_query,
-        "retry_count": state.get(
-            "retry_count",
-            0,
-        )
-        + 1,
-        "retry_required": False,
-    }
-
-
-
-
-# ============================================================
-# SQL Node
-# ============================================================
-
-
-
-
-def sql_node(
-    state: AgentState,
-):
-    """
-    Execute SQL based banking queries.
-    """
-
-
-    result = answer_sql_query(state["query"])
-
-
-    return {
-        "sql_response": result,
-    }
-
-
-
-
-# ============================================================
-# Merge Node
-# ============================================================
-
-
-
-
-def merge_node(
-    state: AgentState,
-):
-    """
-    Merge RAG / SQL response
-    into final answer.
-    """
-
-
-    route = state.get("route")
-
-
-    if route == "sql":
-
-
-        sql_response = state.get(
-            "sql_response",
-            {},
-        )
-
-
-        return {
-            "final_response": sql_response.get(
-                "answer",
-                "No response available.",
-            )
-        }
-
-
-    rag_response = state.get(
-        "rag_response",
-        {},
-    )
-
-
-    return {
-        "final_response": rag_response.get(
-            "answer",
-            "No response available.",
-        )
+        "final_response": final_response,
+        "messages": [AIMessage(content=final_response)],
     }

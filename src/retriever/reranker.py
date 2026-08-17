@@ -1,41 +1,104 @@
 """
 Cohere-based reranking for Smart Banking Assistant.
 
+Reranking pipeline:
 
-Reranking is a second-stage retrieval step:
-    Hybrid Search -> Cohere Reranker -> Final Context
+Hybrid Search
+      |
+      v
+Candidate Chunks
+      |
+      v
+Metadata-aware Cohere Reranking
+      |
+      v
+Final Context
 """
 
-
 import os
-
 
 import cohere
 from dotenv import load_dotenv
 
+from src.common.logger import logger
 
 load_dotenv()
 
 
-
-
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
-
 
 COHERE_RERANK_MODEL = os.getenv("COHERE_RERANK_MODEL")
 
 
-
-
 if not COHERE_API_KEY:
+
+    logger.info("COHERE_API_KEY is not configured")
+
     raise RuntimeError("COHERE_API_KEY is not configured.")
-
-
 
 
 client = cohere.ClientV2(api_key=COHERE_API_KEY)
 
 
+# ============================================================
+# Build reranking document text
+# ============================================================
+
+
+def _build_rerank_text(
+    document: dict,
+) -> str:
+    """
+    Build richer text for Cohere reranking.
+
+    Instead of sending only chunk content,
+    include metadata such as:
+
+    - document name
+    - page
+    - chunk type
+    - section information
+
+    This helps Cohere understand context like:
+
+    SECTION 3: CREDIT CARD
+        |
+        +-- 4.4 Eligibility
+              |
+              +-- Age
+              +-- Income
+              +-- CIBIL
+    """
+
+    metadata = document.get(
+        "metadata",
+        {},
+    )
+
+    return f"""
+Document:
+{document.get("document_name", "")}
+
+Page:
+{document.get("source_page", "")}
+
+Chunk Type:
+{document.get("chunk_type", "")}
+
+Section:
+{metadata.get("section", "")}
+
+Sub Section:
+{metadata.get("sub_section", "")}
+
+Content:
+{document.get("content", "")}
+""".strip()
+
+
+# ============================================================
+# Cohere Reranking
+# ============================================================
 
 
 def rerank_documents(
@@ -44,72 +107,100 @@ def rerank_documents(
     top_k: int = 5,
 ) -> list[dict]:
     """
-    Rerank retrieved documents using Cohere.
+    Rerank retrieved chunks using Cohere.
 
+    Input:
+        Hybrid search results
 
-    Args:
-        query:
-            User's original question.
-
-
-        documents:
-            Candidate chunks produced by hybrid search.
-
-
-        top_k:
-            Number of final chunks returned.
-
-
-    Returns:
+    Output:
         Reranked chunks with:
-            - rerank_score
-            - rerank_rank
+
+        - rerank_score
+        - rerank_rank
     """
 
-
     if not documents:
+
+        logger.info("Reranking skipped | no candidate documents")
+
         return []
 
+    # --------------------------------------------------------
+    # Prepare metadata enriched documents
+    # --------------------------------------------------------
 
-    # Keep a copy of the original chunk metadata.
-    documents_for_reranking = [document.get("content", "") for document in documents]
+    documents_for_reranking = [_build_rerank_text(document) for document in documents]
 
-
-    response = client.rerank(
-        model=COHERE_RERANK_MODEL,
-        query=query,
-        documents=documents_for_reranking,
-        top_n=min(
-            top_k,
-            len(documents),
-        ),
+    logger.debug(
+        "Reranking documents prepared | count=%d",
+        len(documents_for_reranking),
     )
 
+    # --------------------------------------------------------
+    # Call Cohere reranker
+    # --------------------------------------------------------
+
+    try:
+
+        response = client.rerank(
+            model=COHERE_RERANK_MODEL,
+            query=query,
+            documents=documents_for_reranking,
+            top_n=min(
+                top_k,
+                len(documents),
+            ),
+        )
+
+    except Exception:
+
+        logger.exception("Cohere reranking failed")
+
+        raise
 
     reranked_results = []
 
+    # --------------------------------------------------------
+    # Restore original metadata
+    # --------------------------------------------------------
 
     for rank, result in enumerate(
         response.results,
         start=1,
     ):
 
-
         original_document = documents[result.index].copy()
-
 
         original_document["rerank_score"] = float(result.relevance_score)
 
-
         original_document["rerank_rank"] = rank
-
 
         reranked_results.append(original_document)
 
+    # --------------------------------------------------------
+    # Reranking summary
+    # --------------------------------------------------------
+
+    if reranked_results:
+
+        best_score = max(
+            document.get(
+                "rerank_score",
+                0.0,
+            )
+            for document in reranked_results
+        )
+
+    else:
+
+        logger.info("Cohere reranking completed with no results")
 
     return reranked_results
 
 
+# ============================================================
+# Retrieval Quality Check
+# ============================================================
 
 
 def is_retrieval_relevant(
@@ -117,18 +208,16 @@ def is_retrieval_relevant(
     threshold: float = 0.50,
 ) -> bool:
     """
-    Determine whether the reranked results are relevant enough
-    to answer the user's query.
+    Check whether retrieved context is good enough.
 
-
-    Uses the highest Cohere rerank score as a simple first-stage
-    relevance signal.
+    Uses highest Cohere relevance score.
     """
 
-
     if not reranked_documents:
-        return False
 
+        logger.info("Retrieval relevance check failed | no reranked documents")
+
+        return False
 
     best_score = max(
         document.get(
@@ -138,5 +227,6 @@ def is_retrieval_relevant(
         for document in reranked_documents
     )
 
+    is_relevant = best_score >= threshold
 
-    return best_score >= threshold
+    return is_relevant

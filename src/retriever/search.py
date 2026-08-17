@@ -1,50 +1,73 @@
-"""
-Vector similarity search using PGVector.
-"""
-
-
 from openai import OpenAI
 import os
 
-
-
-
 from dotenv import load_dotenv
-from src.retriever.reranker import rerank_documents
-from src.database.postgres import get_vector_connection
 
+from src.retriever.reranker import (
+    rerank_documents,
+)
+
+from src.database.postgres import (
+    get_vector_connection,
+)
+
+from src.common.logger import logger
 
 load_dotenv()
-
-
 
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
+# ============================================================
+# Query Embedding
+# ============================================================
 
 
-def generate_query_embedding(query: str):
-    """Generate an embedding for the user's query."""
+def generate_query_embedding(
+    query: str,
+):
+    """
+    Generate an embedding for the user's query.
+    """
 
-
-    response = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=query,
+    logger.debug(
+        "Query embedding generation started",
     )
 
+    try:
 
-    return response.data[0].embedding
+        response = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=query,
+        )
+
+        logger.debug(
+            "Query embedding generation completed",
+        )
+
+        return response.data[0].embedding
+
+    except Exception:
+
+        logger.exception(
+            "Query embedding generation failed",
+        )
+
+        raise
 
 
+# ============================================================
+# Vector Search
+# ============================================================
 
 
-def vector_search(query: str, top_k: int = 8):
+def vector_search(
+    query: str,
+    top_k: int = 8,
+):
     """
     Retrieve relevant chunks from PGVector.
-
-
-
 
     Returns complete source metadata including:
     - document name
@@ -54,16 +77,18 @@ def vector_search(query: str, top_k: int = 8):
     - similarity score
     """
 
+    logger.info(
+        "Vector search started | top_k=%d",
+        top_k,
+    )
 
     query_embedding = generate_query_embedding(query)
 
-
     connection = get_vector_connection()
 
-
     try:
-        cursor = connection.cursor()
 
+        cursor = connection.cursor()
 
         sql = """
         SELECT
@@ -77,32 +102,16 @@ def vector_search(query: str, top_k: int = 8):
             language,
             metadata,
 
-
-
-
             embedding <=> %s::vector AS similarity_score
-
-
-
 
         FROM multimodal_chunks
 
-
-
-
         WHERE embedding IS NOT NULL
-
-
-
 
         ORDER BY embedding <=> %s::vector
 
-
-
-
         LIMIT %s;
         """
-
 
         cursor.execute(
             sql,
@@ -113,20 +122,16 @@ def vector_search(query: str, top_k: int = 8):
             ),
         )
 
-
         rows = cursor.fetchall()
-
 
         results = []
 
-
         for row in rows:
-
 
             results.append(
                 {
                     "id": row[0],
-                    "document_id": str(row[1]) if row[1] else None,
+                    "document_id": (str(row[1]) if row[1] else None),
                     "document_name": row[2],
                     "content": row[3],
                     "chunk_type": row[4],
@@ -138,24 +143,31 @@ def vector_search(query: str, top_k: int = 8):
                 }
             )
 
+        logger.info(
+            "Vector search completed | result_count=%d",
+            len(results),
+        )
 
         cursor.close()
 
-
         return results
 
+    except Exception:
+
+        logger.exception(
+            "Vector search failed",
+        )
+
+        raise
 
     finally:
+
         connection.close()
-
-
 
 
 # ---------------------------------------------------------------------------
 # Full Text Search
 # ---------------------------------------------------------------------------
-
-
 
 
 def fts_search(
@@ -165,36 +177,25 @@ def fts_search(
     """
     PostgreSQL Full Text Search.
 
-
-    Uses OR-style matching so that a query such as:
-
-
-        home loan eligibility
-
-
-    can retrieve:
-        - Home Loan section
-        - Eligibility Criteria section
-        - related eligibility tables
-
-
-    rather than requiring all words to exist in one chunk.
+    Uses OR-style matching.
     """
 
+    logger.info(
+        "FTS search started | top_k=%d",
+        top_k,
+    )
 
     connection = get_vector_connection()
-    cursor = connection.cursor()
 
+    cursor = connection.cursor()
 
     # Convert:
     # "home loan eligibility"
     #
     # into:
     # "home OR loan OR eligibility"
-    #
-    # websearch_to_tsquery safely parses the search expression.
-    fts_query = " OR ".join(word for word in query.split() if word.strip())
 
+    fts_query = " OR ".join(word for word in query.split() if word.strip())
 
     sql = """
     SELECT
@@ -204,7 +205,6 @@ def fts_search(
         chunk_type,
         source_page,
         metadata,
-
 
         ts_rank_cd(
             to_tsvector(
@@ -217,9 +217,7 @@ def fts_search(
             )
         ) AS rank_score
 
-
     FROM multimodal_chunks
-
 
     WHERE
         to_tsvector(
@@ -232,15 +230,13 @@ def fts_search(
             %s
         )
 
-
     ORDER BY rank_score DESC
-
 
     LIMIT %s;
     """
 
-
     try:
+
         cursor.execute(
             sql,
             (
@@ -250,14 +246,12 @@ def fts_search(
             ),
         )
 
-
         rows = cursor.fetchall()
-
 
         results = []
 
-
         for row in rows:
+
             results.append(
                 {
                     "id": row[0],
@@ -271,22 +265,30 @@ def fts_search(
                 }
             )
 
+        logger.info(
+            "FTS search completed | result_count=%d",
+            len(results),
+        )
 
         return results
 
+    except Exception:
+
+        logger.exception(
+            "FTS search failed",
+        )
+
+        raise
 
     finally:
+
         cursor.close()
         connection.close()
-
-
 
 
 # ---------------------------------------------------------------------------
 # RRF Fusion
 # ---------------------------------------------------------------------------
-
-
 
 
 def rrf_fusion(
@@ -298,48 +300,33 @@ def rrf_fusion(
     """
     Combine Vector Search and FTS rankings using
     Reciprocal Rank Fusion (RRF).
-
-
-    RRF formula:
-
-
-        RRF(d) = sum(
-            1 / (rrf_k + rank)
-        )
-
-
-    A document gets a contribution from each
-    retrieval method in which it appears.
-
-
-    Args:
-        vector_results: Results ranked by vector search.
-        fts_results: Results ranked by FTS.
-        top_k: Number of final results to return.
-        rrf_k: RRF smoothing constant. Default = 60.
-
-
-    Returns:
-        Final results ranked by RRF score.
     """
 
+    logger.debug(
+        "RRF fusion started | vector_results=%d | " "fts_results=%d | top_k=%d",
+        len(vector_results),
+        len(fts_results),
+        top_k,
+    )
 
-    candidates: dict[int, dict] = {}
-
+    candidates: dict[
+        int,
+        dict,
+    ] = {}
 
     # ------------------------------------------------------------------
     # Add Vector Search rankings
     # ------------------------------------------------------------------
 
-
     for rank, result in enumerate(
         vector_results,
         start=1,
     ):
+
         chunk_id = result["id"]
 
-
         if chunk_id not in candidates:
+
             candidates[chunk_id] = {
                 **result,
                 "vector_rank": None,
@@ -347,26 +334,23 @@ def rrf_fusion(
                 "rrf_score": 0.0,
             }
 
-
         candidates[chunk_id]["vector_rank"] = rank
 
-
         candidates[chunk_id]["rrf_score"] += 1.0 / (rrf_k + rank)
-
 
     # ------------------------------------------------------------------
     # Add FTS rankings
     # ------------------------------------------------------------------
 
-
     for rank, result in enumerate(
         fts_results,
         start=1,
     ):
+
         chunk_id = result["id"]
 
-
         if chunk_id not in candidates:
+
             candidates[chunk_id] = {
                 **result,
                 "vector_rank": None,
@@ -374,17 +358,13 @@ def rrf_fusion(
                 "rrf_score": 0.0,
             }
 
-
         candidates[chunk_id]["fts_rank"] = rank
 
-
         candidates[chunk_id]["rrf_score"] += 1.0 / (rrf_k + rank)
-
 
     # ------------------------------------------------------------------
     # Sort by combined RRF score
     # ------------------------------------------------------------------
-
 
     ranked_results = sorted(
         candidates.values(),
@@ -392,22 +372,16 @@ def rrf_fusion(
         reverse=True,
     )
 
+    final_results = ranked_results[:top_k]
 
-    # ------------------------------------------------------------------
-    # Return only top K
-    # ------------------------------------------------------------------
+    logger.info("RRF fusion completed ")
 
-
-    return ranked_results[:top_k]
-
-
+    return final_results
 
 
 # ---------------------------------------------------------------------------
 # Hybrid Search
 # ---------------------------------------------------------------------------
-
-
 
 
 def hybrid_search(
@@ -419,76 +393,71 @@ def hybrid_search(
     """
     Perform hybrid retrieval using:
 
-
         Vector Search
-              +
+        +
         PostgreSQL FTS
-              ↓
+        ↓
         RRF Fusion
-
-
-    Args:
-        query: User's natural-language question.
-        top_k: Number of final hybrid results.
-        candidate_k: Number of candidates retrieved
-                     independently by each search method.
-        rrf_k: RRF smoothing constant.
-
-
-    Returns:
-        Final RRF-ranked hybrid results.
     """
 
+    logger.info("Hybrid search started ")
 
-    # ------------------------------------------------------------------
-    # Retrieve candidates from both search methods
-    # ------------------------------------------------------------------
+    try:
 
+        # ------------------------------------------------------------------
+        # Retrieve candidates from both search methods
+        # ------------------------------------------------------------------
 
-    vector_results = vector_search(
-        query=query,
-        top_k=candidate_k,
-    )
+        vector_results = vector_search(
+            query=query,
+            top_k=candidate_k,
+        )
 
+        fts_results = fts_search(
+            query=query,
+            top_k=candidate_k,
+        )
 
-    fts_results = fts_search(
-        query=query,
-        top_k=candidate_k,
-    )
+        # ------------------------------------------------------------------
+        # Fuse rankings
+        # ------------------------------------------------------------------
 
+        results = rrf_fusion(
+            vector_results=vector_results,
+            fts_results=fts_results,
+            top_k=top_k,
+            rrf_k=rrf_k,
+        )
 
-    # ------------------------------------------------------------------
-    # Fuse the rankings
-    # ------------------------------------------------------------------
+        # ------------------------------------------------------------------
+        # Add hybrid metadata
+        # ------------------------------------------------------------------
 
+        for result in results:
 
-    results = rrf_fusion(
-        vector_results=vector_results,
-        fts_results=fts_results,
-        top_k=top_k,
-        rrf_k=rrf_k,
-    )
+            result["search_type"] = "hybrid"
 
+        logger.info(
+            "Hybrid search completed | vector=%d | fts=%d | " "rrf_results=%d",
+            len(vector_results),
+            len(fts_results),
+            len(results),
+        )
 
-    # ------------------------------------------------------------------
-    # Add hybrid metadata
-    # ------------------------------------------------------------------
+        return results
 
+    except Exception:
 
-    for result in results:
-        result["search_type"] = "hybrid"
+        logger.exception(
+            "Hybrid search failed",
+        )
 
-
-    return results
-
-
+        raise
 
 
 # ---------------------------------------------------------------------------
 # Hybrid Search + Reranking
 # ---------------------------------------------------------------------------
-
-
 
 
 def hybrid_reranked_search(
@@ -500,20 +469,21 @@ def hybrid_reranked_search(
     """
     Perform:
 
-
         Vector Search
-             +
+        +
         FTS Search
-             ↓
+        ↓
         RRF Fusion
-             ↓
+        ↓
         Cohere Reranking
-             ↓
+        ↓
         Final results
     """
 
+    logger.info("Hybrid reranked search started ")
 
     # Step 1: Hybrid retrieval + RRF
+
     hybrid_candidates = hybrid_search(
         query=query,
         top_k=candidate_k,
@@ -521,26 +491,41 @@ def hybrid_reranked_search(
         rrf_k=rrf_k,
     )
 
-
     if not hybrid_candidates:
+
+        logger.info(
+            "Hybrid reranked search returned no candidates",
+        )
+
         return []
 
-
     # Step 2: Cohere reranking
-    reranked_results = rerank_documents(
-        query=query,
-        documents=hybrid_candidates,
-        top_k=final_k,
-    )
 
+    try:
+
+        reranked_results = rerank_documents(
+            query=query,
+            documents=hybrid_candidates,
+            top_k=final_k,
+        )
+
+    except Exception:
+
+        logger.exception(
+            "Cohere reranking failed",
+        )
+
+        raise
 
     # Step 3: Add metadata
+
     for rank, result in enumerate(
         reranked_results,
         start=1,
     ):
-        result["search_type"] = "hybrid_reranked"
-        result["rerank_rank"] = rank
 
+        result["search_type"] = "hybrid_reranked"
+
+        result["rerank_rank"] = rank
 
     return reranked_results

@@ -14,13 +14,18 @@ will be integrated later.
 
 import re
 from typing import Any
+
 from langchain_openai import ChatOpenAI
 
-from src.common.config import OPENAI_API_KEY, OPENAI_MODEL
+from src.common.config import (
+    OPENAI_API_KEY,
+    OPENAI_MODEL,
+)
+
 from src.common.prompts import SQL_GENERATION_PROMPT
 from src.common.schemas import SQLGenerationResponse
-
 from src.database.postgres import get_connection
+from src.common.logger import logger
 
 # ============================================================
 # Configuration
@@ -45,11 +50,55 @@ FORBIDDEN_KEYWORDS = {
 
 
 # ============================================================
+# Destructive Intent Detection
+# ============================================================
+
+
+def contains_destructive_intent(
+    query: str,
+) -> bool:
+    """
+    Detect user requests that attempt
+    destructive database operations.
+    """
+
+    destructive_patterns = [
+        r"\bdelete\b",
+        r"\bremove\b",
+        r"\bdrop\b",
+        r"\btruncate\b",
+        r"\berase\b",
+        r"\bclear\b",
+        r"\bdestroy\b",
+        r"\bmodify\b",
+        r"\bupdate\b",
+        r"\bchange\b",
+    ]
+
+    query_lower = query.lower()
+
+    for pattern in destructive_patterns:
+
+        if re.search(
+            pattern,
+            query_lower,
+        ):
+
+            logger.info("Destructive SQL intent detected")
+
+            return True
+
+    return False
+
+
+# ============================================================
 # SQL Validation
 # ============================================================
 
 
-def validate_sql(sql: str) -> tuple[bool, str]:
+def validate_sql(
+    sql: str,
+) -> tuple[bool, str]:
     """
     Validate SQL before execution.
 
@@ -61,7 +110,13 @@ def validate_sql(sql: str) -> tuple[bool, str]:
     """
 
     if not sql or not sql.strip():
-        return False, "SQL query cannot be empty."
+
+        logger.info("SQL validation failed | reason=empty_sql")
+
+        return (
+            False,
+            "SQL query cannot be empty.",
+        )
 
     sql = sql.strip()
 
@@ -77,6 +132,9 @@ def validate_sql(sql: str) -> tuple[bool, str]:
         sql_without_semicolon,
         re.IGNORECASE,
     ):
+
+        logger.info("SQL validation failed | reason=non_select")
+
         return (
             False,
             "Only SELECT statements are allowed.",
@@ -87,6 +145,9 @@ def validate_sql(sql: str) -> tuple[bool, str]:
     # --------------------------------------------------------
 
     if ";" in sql_without_semicolon:
+
+        logger.info("SQL validation failed | reason=multiple_statements")
+
         return (
             False,
             "Multiple SQL statements are not allowed.",
@@ -104,12 +165,21 @@ def validate_sql(sql: str) -> tuple[bool, str]:
             rf"\b{keyword}\b",
             sql_upper,
         ):
+
+            logger.info(
+                "SQL validation failed | forbidden_operation=%s",
+                keyword,
+            )
+
             return (
                 False,
                 f"Forbidden SQL operation detected: {keyword}",
             )
 
-    return True, "SQL validation successful."
+    return (
+        True,
+        "SQL validation successful.",
+    )
 
 
 # ============================================================
@@ -117,7 +187,9 @@ def validate_sql(sql: str) -> tuple[bool, str]:
 # ============================================================
 
 
-def apply_row_limit(sql: str) -> str:
+def apply_row_limit(
+    sql: str,
+) -> str:
     """
     Ensure the SQL query does not request more than
     MAX_ROWS rows.
@@ -144,9 +216,20 @@ def apply_row_limit(sql: str) -> str:
         existing_limit = int(limit_match.group(1))
 
         if existing_limit <= MAX_ROWS:
+
+            logger.debug(
+                "SQL row limit preserved | limit=%d",
+                existing_limit,
+            )
+
             return sql
 
-        # Replace larger LIMIT with 100.
+        logger.info(
+            "SQL row limit reduced | original_limit=%d | max_rows=%d",
+            existing_limit,
+            MAX_ROWS,
+        )
+
         return re.sub(
             r"\bLIMIT\s+\d+",
             f"LIMIT {MAX_ROWS}",
@@ -154,7 +237,13 @@ def apply_row_limit(sql: str) -> str:
             flags=re.IGNORECASE,
         )
 
-    # No LIMIT → add one.
+    # No LIMIT -> add one.
+
+    logger.debug(
+        "SQL row limit added | max_rows=%d",
+        MAX_ROWS,
+    )
+
     return f"{sql} LIMIT {MAX_ROWS}"
 
 
@@ -169,20 +258,9 @@ def execute_sql(
 ) -> dict[str, Any]:
     """
     Validate and execute a SQL query.
-
-    Parameters
-    ----------
-    sql:
-        SQL SELECT statement.
-
-    params:
-        Optional parameter tuple for parameterized SQL.
-
-    Returns
-    -------
-    dict
-        Structured SQL execution result.
     """
+
+    logger.info("SQL execution started")
 
     # --------------------------------------------------------
     # Validate
@@ -191,6 +269,8 @@ def execute_sql(
     is_valid, validation_message = validate_sql(sql)
 
     if not is_valid:
+
+        logger.info("SQL execution rejected | validation_failed")
 
         return {
             "success": False,
@@ -210,6 +290,8 @@ def execute_sql(
 
     try:
 
+        logger.debug("Opening database connection")
+
         connection = get_connection()
 
         cursor = connection.cursor()
@@ -222,6 +304,8 @@ def execute_sql(
             safe_sql,
             params or (),
         )
+
+        logger.debug("SQL statement executed successfully")
 
         # ----------------------------------------------------
         # Fetch results
@@ -239,10 +323,23 @@ def execute_sql(
         # Convert rows to dictionaries
         # ----------------------------------------------------
 
-        result_rows = [dict(zip(column_names, row)) for row in rows]
+        result_rows = [
+            dict(
+                zip(
+                    column_names,
+                    row,
+                )
+            )
+            for row in rows
+        ]
 
         # Safety guard.
         result_rows = result_rows[:MAX_ROWS]
+
+        logger.info(
+            "SQL execution completed | row_count=%d",
+            len(result_rows),
+        )
 
         return {
             "success": True,
@@ -253,6 +350,8 @@ def execute_sql(
         }
 
     except Exception as exc:
+
+        logger.exception("SQL database execution failed")
 
         return {
             "success": False,
@@ -265,15 +364,27 @@ def execute_sql(
     finally:
 
         if connection:
+
             connection.close()
 
+            logger.debug("Database connection closed")
 
-def generate_sql(user_query: str) -> dict[str, Any]:
+
+# ============================================================
+# SQL Generator
+# ============================================================
+
+
+def generate_sql(
+    user_query: str,
+) -> dict[str, Any]:
     """
     Convert a natural-language banking question into SQL.
     """
 
     if not user_query or not user_query.strip():
+
+        logger.info("SQL generation rejected | empty_user_query")
 
         return {
             "success": False,
@@ -281,6 +392,8 @@ def generate_sql(user_query: str) -> dict[str, Any]:
             "explanation": None,
             "error": "User query cannot be empty.",
         }
+
+    logger.info("SQL generation started")
 
     try:
 
@@ -296,6 +409,8 @@ def generate_sql(user_query: str) -> dict[str, Any]:
 
         response = structured_model.invoke(prompt)
 
+        logger.info("SQL generation completed")
+
         return {
             "success": True,
             "sql": response.sql,
@@ -303,13 +418,15 @@ def generate_sql(user_query: str) -> dict[str, Any]:
             "error": None,
         }
 
-    except Exception as exc:
+    except Exception:
+
+        logger.exception("SQL generation failed")
 
         return {
             "success": False,
             "sql": None,
             "explanation": None,
-            "error": str(exc),
+            "error": "SQL generation failed.",
         }
 
 
@@ -328,6 +445,8 @@ def process_sql(
     LangGraph's SQL node will eventually call this function.
     """
 
+    logger.debug("process_sql called")
+
     return execute_sql(
         sql=sql,
         params=params,
@@ -341,6 +460,31 @@ def process_natural_language_query(
     Complete NL -> SQL -> Validation -> Execution pipeline.
     """
 
+    logger.info("Natural-language SQL pipeline started")
+
+    # --------------------------------------------------------
+    # Destructive intent guardrail
+    # --------------------------------------------------------
+
+    if contains_destructive_intent(user_query):
+
+        logger.info(
+            "Natural-language SQL request blocked " "by destructive-intent guardrail"
+        )
+
+        return {
+            "success": False,
+            "user_query": user_query,
+            "sql": None,
+            "explanation": None,
+            "rows": [],
+            "row_count": 0,
+            "error": (
+                "Destructive operations are not allowed. "
+                "The assistant supports read-only banking queries only."
+            ),
+        }
+
     # --------------------------------------------------------
     # 1. Generate SQL
     # --------------------------------------------------------
@@ -348,6 +492,10 @@ def process_natural_language_query(
     generation_result = generate_sql(user_query)
 
     if not generation_result["success"]:
+
+        logger.info(
+            "Natural-language SQL pipeline stopped | " "reason=sql_generation_failed"
+        )
 
         return {
             "success": False,
@@ -369,6 +517,8 @@ def process_natural_language_query(
 
     if not is_valid:
 
+        logger.info("Generated SQL failed validation")
+
         return {
             "success": False,
             "user_query": user_query,
@@ -379,11 +529,19 @@ def process_natural_language_query(
             "error": validation_message,
         }
 
+    logger.info("Generated SQL passed validation")
+
     # --------------------------------------------------------
     # 3. Execute SQL
     # --------------------------------------------------------
 
     execution_result = execute_sql(generated_sql)
+
+    logger.info(
+        "Natural-language SQL pipeline completed | " "success=%s | row_count=%s",
+        execution_result["success"],
+        execution_result["row_count"],
+    )
 
     return {
         "success": execution_result["success"],

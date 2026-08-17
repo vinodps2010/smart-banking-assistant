@@ -21,8 +21,16 @@ uv run streamlit run frontend/app.py
 #swagger 
 http://127.0.0.1:8000/docs
 
+# cmd not closing issue
+netstat -ano | findstr :8000
+taskkill /F /IM python.exe
+taskkill /F /IM uv.exe
+
+
+
 Q: 
 What is the eligibility criteria for home loan?
+
 Show transactions for account 1345367 where amount is greater than 50000
 
 
@@ -133,3 +141,77 @@ Smart Banking                     Smart Banking RAG
                      │
                 Streamlit
                 
+
+
+# duplocate records existis or not ? 
+SELECT id, document_name, created_at
+FROM documents
+ORDER BY created_at;
+
+
+SELECT
+    document_id,
+    document_name,
+    COUNT(*) AS chunk_count
+FROM multimodal_chunks
+GROUP BY document_id, document_name
+ORDER BY document_name, chunk_count DESC;
+
+# connect to specific db 
+/c smart_banking_rag_db -- connect to specific db 
+\dt — Lists all tables in the current database and schema.
+\dt *.* — Lists tables in all schemas.
+\d — Lists all relations (tables, views, sequences, etc.).
+\dtS — Lists system tables as well.
+
+TRUNCATE TABLE multimodal_chunks, documents CASCADE;
+
+
+
+
+#----------------------
+Questions : 
+
+1. Basic RAG Test (Knowledge Base Retrieva
+-------------------------------------------
+
+What is the eligibility criteria for home loan?
+
+2. FTS / Hybrid Search Test
+-------------------------------------------
+- What is the maximum LTV for home loan?
+
+
+3. Semantic Vector Search Test
+-------------------------------------------
+How much income should I have to apply for a house loan?
+
+4. Reranking Test (Cohere)
+-----------------------------------------
+What documents and eligibility conditions are required for a home loan?
+
+5. SQL Agent test
+---------------------------------
+- Show transactions for account 1345367 where amount is greater than 50000
+
+6. SQL + RAG Combined (BOTH route) : Failed 
+---------------------------------
+- Can customer 1345367 get a home loan based on eligibility criteria?
+- Can customer 1345367 get a personal loan based on eligibility criteria?
+- Is customer 1345367 eligible for credit card?
+- Can customer 1345367 get a loan with his current EMI?
+
+7. Checkpoint Test 
+--------------------
+- What is home loan eligibility?
+- What about documents?
+
+8. Streaming Test 
+--------------------
+
+- Explain personal loan features
+
+
+9. Guarrail Test  -- failed 
+--------------------- 
+- Delete all customer accounts
