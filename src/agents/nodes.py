@@ -562,6 +562,731 @@ redirect|small_talks
 block|small_talks
 
 
+============================================================
+SMALL_TALKS
+============================================================
+
+Use small_talks for:
+
+- casual conversation
+- personal conversation
+- introductions
+- non-banking topics
+- harmless unrelated questions
+- general conversation
+- questions that do not require banking information
+
+Examples:
+
+What do you think about travelling?
+Tell me a joke
+Give me a recipe
+What is your favorite movie?
+Do you like cricket?
+
+
+============================================================
+RAG
+============================================================
+
+Use rag when the user needs information from NorthStar Bank
+banking documents, products, policies, or eligibility rules.
+
+Examples:
+
+What is the maximum LTV for a home loan?
+What documents are required for a personal loan?
+What are the credit card eligibility criteria?
+What are the home loan interest rates?
+
+
+============================================================
+SQL
+============================================================
+
+Use sql when the user needs customer/account/database
+information.
+
+Examples:
+
+What is the customer associated with account 1345367?
+Who owns account 1345367?
+Show transactions for account 1345367.
+What is the balance of account 1345367?
+What is the customer's loan outstanding?
+
+
+============================================================
+BOTH
+============================================================
+
+Use both when BOTH customer-specific information and
+banking policy/product/eligibility information are required.
+
+Examples:
+
+Can customer 1345367 get a home loan?
+Can customer 1345367 get a personal loan based on eligibility?
+
+
+============================================================
+INPUT GUARDRAIL
+============================================================
+
+allow:
+Normal banking questions and harmless conversation.
+
+redirect:
+Harmless requests outside the primary banking purpose.
+
+Examples:
+
+Give me a recipe
+Write Python code
+Tell me about cricket
+Tell me a movie story
+
+block:
+Requests involving destructive or unauthorized operations.
+
+Examples:
+
+Delete all customer accounts
+Delete customer 1345367
+Drop the transactions table
+Update all account balances
+Truncate customer records
+
+A destructive request MUST return:
+
+block|small_talks
+
+
+============================================================
+IMPORTANT CLASSIFICATION RULES
+============================================================
+
+- Understand the complete meaning of the user's request.
+- Do not rely on individual keywords alone.
+- Do not generate an answer.
+- Do not generate SQL.
+- Do not explain your decision.
+- Return ONLY guardrail|route.
+- Customer/account information normally uses SQL.
+- Banking policy/product information normally uses RAG.
+- Requests requiring both customer information and policy
+  information use BOTH.
+- General/casual/unrelated conversation uses SMALL_TALKS.
+"""
+
+    # --------------------------------------------------------
+    # Call Intent Classification LLM
+    # --------------------------------------------------------
+
+    try:
+
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": classifier_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": query,
+                },
+            ],
+            max_completion_tokens=300,
+        )
+
+        content = (response.choices[0].message.content or "").strip()
+
+        # Existing debug prints replaced by logger.
+        #
+        # print(
+        #     "[agent] Classifier finish reason:",
+        #     response.choices[0].finish_reason,
+        # )
+        #
+        # print(
+        #     "[agent] Classifier raw response:",
+        #     repr(content),
+        # )
+
+        logger.debug(
+            "Intent classifier finish reason=%s",
+            response.choices[0].finish_reason,
+        )
+
+        logger.debug(
+            "Intent classifier raw response=%r",
+            content,
+        )
+
+        if not content:
+
+            raise ValueError("Intent classifier returned an empty response.")
+
+        # ----------------------------------------------------
+        # Parse:
+        #
+        # allow|sql
+        # allow|rag
+        # allow|both
+        # allow|small_talks
+        # redirect|small_talks
+        # block|small_talks
+        # ----------------------------------------------------
+
+        parts = content.split(
+            "|",
+            1,
+        )
+
+        if len(parts) != 2:
+
+            raise ValueError(f"Invalid classifier response: {content}")
+
+        guardrail = parts[0].strip().lower()
+
+        route = parts[1].strip().lower()
+
+    except Exception as exc:
+
+        # Existing print replaced with logger.exception.
+        #
+        # print(
+        #     "[agent] Intent classifier error:",
+        #     str(exc),
+        # )
+
+        logger.exception(
+            "Intent classifier failed",
+        )
+
+        # Safe fallback:
+        # do not send an uncertain request to SQL or RAG.
+
+        route = "small_talks"
+
+        guardrail = "allow"
+
+    # --------------------------------------------------------
+    # Validate classifier result
+    # --------------------------------------------------------
+
+    valid_routes = {
+        "small_talks",
+        "rag",
+        "sql",
+        "both",
+    }
+
+    valid_guardrails = {
+        "allow",
+        "redirect",
+        "block",
+    }
+
+    if route not in valid_routes:
+
+        logger.info(
+            "Invalid classifier route received | route=%s",
+            route,
+        )
+
+        route = "small_talks"
+
+    if guardrail not in valid_guardrails:
+
+        logger.info(
+            "Invalid guardrail received | guardrail=%s",
+            guardrail,
+        )
+
+        guardrail = "allow"
+
+    # --------------------------------------------------------
+    # Safety rule:
+    # blocked requests never reach SQL/RAG.
+    # --------------------------------------------------------
+
+    if guardrail == "block":
+
+        logger.info(
+            "Destructive request blocked by input guardrail",
+        )
+
+        route = "small_talks"
+
+    # --------------------------------------------------------
+    # Redirected requests also go to small-talk node.
+    # --------------------------------------------------------
+
+    if guardrail == "redirect":
+
+        route = "small_talks"
+
+    # --------------------------------------------------------
+    # Route decision
+    # --------------------------------------------------------
+
+    # Existing prints replaced by logger.
+    #
+    # print(
+    #     "[agent] Route selected:",
+    #     route,
+    # )
+    #
+    # print(
+    #     "[agent] Guardrail:",
+    #     guardrail,
+    # )
+
+    # --------------------------------------------------------
+    # Return state
+    # --------------------------------------------------------
+
+    return {
+        "route": route,
+        "guardrail": guardrail,
+        "fast_small_talk_checked": True,
+        "original_query": state.get(
+            "original_query",
+            state["query"],
+        ),
+        # ----------------------------------------------------
+        # Reset transient per-request fields.
+        #
+        # Conversation messages remain persisted.
+        # ----------------------------------------------------
+        "retry_count": 0,
+        "max_retries": state.get(
+            "max_retries",
+            1,
+        ),
+        "rewritten_query": None,
+        "retrieval_quality": None,
+        "retry_required": False,
+        "rag_response": {},
+        "sql_response": {},
+        "sources": [],
+    }
+
+
+# ============================================================
+# RAG Node
+# ============================================================
+
+
+def rag_node(
+    state: AgentState,
+):
+    """
+    Execute Hybrid Search + RRF +
+    Cohere Reranking RAG pipeline.
+    """
+
+    query = state.get("rewritten_query") or state["query"]
+
+    logger.info(
+        "RAG processing started",
+    )
+
+    try:
+
+        result = answer_rag_query(query, history=state.get("messages", []))
+
+        retry_count = state.get(
+            "retry_count",
+            0,
+        )
+
+        sources = result.get(
+            "sources",
+            [],
+        )
+
+        retrieval_quality = result.get(
+            "retrieval_quality",
+            0.0,
+        )
+
+        retry_required = result.get(
+            "retry_required",
+            False,
+        )
+
+        logger.info("RAG processing completed ")
+
+        return {
+            "rag_response": result,
+            "sources": sources,
+            "retrieval_quality": retrieval_quality,
+            "retry_required": retry_required,
+            "retry_count": retry_count,
+        }
+
+    except Exception:
+
+        logger.exception(
+            "RAG processing failed",
+        )
+
+        raise
+
+
+# ============================================================
+# RAG Retry Decision
+# ============================================================
+
+
+def decide_rag_retry(
+    state: AgentState,
+):
+    """
+    Decide whether RAG should retry
+    with rewritten query.
+    """
+
+    retry_required = state.get(
+        "retry_required",
+        False,
+    )
+
+    retry_count = state.get(
+        "retry_count",
+        0,
+    )
+
+    max_retries = state.get(
+        "max_retries",
+        1,
+    )
+
+    if retry_required and retry_count < max_retries:
+
+        logger.info("RAG retry requested ")
+
+        return "retry"
+
+    return "finish"
+
+
+# ============================================================
+# Query Rephrase Node
+# ============================================================
+
+
+def rephrase_query_node(
+    state: AgentState,
+):
+    """
+    Rewrite weak retrieval query.
+    """
+
+    rag_response = state.get(
+        "rag_response",
+        {},
+    )
+
+    sources = rag_response.get(
+        "sources",
+        [],
+    )
+
+    context_parts = []
+
+    for source in sources[:5]:
+
+        context_parts.append(
+            source.get(
+                "content",
+                "",
+            )
+        )
+
+    context = "\n\n".join(context_parts)
+
+    logger.info("RAG query rephrase started ")
+
+    try:
+
+        rewritten_query = rewrite_query(
+            query=state["query"],
+            context=context,
+        )
+
+        # Existing debug print replaced by logger.
+        #
+        # print(
+        #     "[agent] Rewritten query:",
+        #     rewritten_query,
+        # )
+        logger.info("=" * 60)
+
+        logger.info("   Rewritten_query :%s", rewritten_query)
+        logger.info("=" * 60)
+
+        return {
+            "rewritten_query": rewritten_query,
+            "retry_count": (
+                state.get(
+                    "retry_count",
+                    0,
+                )
+                + 1
+            ),
+            "retry_required": False,
+        }
+
+    except Exception:
+
+        logger.exception(
+            "RAG query rephrase failed",
+        )
+
+        raise
+
+
+# ============================================================
+# SQL Node
+# ============================================================
+
+
+def sql_node(
+    state: AgentState,
+):
+    """
+    Execute SQL based banking queries.
+    """
+
+    try:
+
+        result = answer_sql_query(state["query"])
+
+        rows = result.get(
+            "rows",
+            [],
+        )
+
+        if result.get("error"):
+
+            logger.info(
+                "SQL processing returned error",
+            )
+
+        else:
+
+            logger.info(
+                "SQL processing completed | row_count=%d",
+                len(rows),
+            )
+
+        return {
+            "sql_response": result,
+            "sources": [
+                {
+                    "source_type": "database",
+                    "source_name": "NorthStar Bank Customer Database",
+                }
+            ],
+        }
+
+    except Exception:
+
+        logger.exception(
+            "SQL processing failed",
+        )
+
+        raise
+
+
+# ============================================================
+# BOTH Node
+# ============================================================
+
+
+def both_node(
+    state: AgentState,
+):
+    """
+    Execute both:
+
+    1. RAG:
+       Banking policy / eligibility rules
+
+    2. SQL:
+       Customer/account information
+    """
+
+    query = state["query"]
+
+    logger.info(
+        "BOTH processing started | executing RAG and SQL",
+    )
+
+    try:
+
+        # ----------------------------------------------------
+        # RAG
+        # ----------------------------------------------------
+
+        rag_result = answer_rag_query(query, history=state.get("messages", []))
+
+        # ----------------------------------------------------
+        # SQL
+        # ----------------------------------------------------
+
+        sql_result = answer_sql_query(query)
+
+        rag_sources = rag_result.get(
+            "sources",
+            [],
+        )
+
+        sql_rows = sql_result.get(
+            "rows",
+            [],
+        )
+
+        logger.info(
+            "BOTH processing completed | rag_sources=%d | " "sql_rows=%d",
+            len(rag_sources),
+            len(sql_rows),
+        )
+
+        return {
+            "rag_response": rag_result,
+            "sql_response": sql_result,
+            "sources": rag_sources
+            + [
+                {
+                    "source_type": "database",
+                    "source_name": "NorthStar Bank Customer Database",
+                }
+            ],
+            "retrieval_quality": rag_result.get(
+                "retrieval_quality",
+                0.0,
+            ),
+            "retry_required": False,
+        }
+
+    except Exception:
+
+        logger.exception(
+            "BOTH processing failed",
+        )
+
+        raise
+
+
+# ============================================================
+# Merge Node
+# ============================================================
+
+
+def merge_node(
+    state: AgentState,
+):
+    """
+    Merge RAG / SQL / BOTH responses.
+
+    Also stores the assistant's final response
+    in conversation history.
+    """
+
+    route = state.get("route")
+
+    logger.info(
+        "Merge node started | route=%s",
+        route,
+    )
+
+    # --------------------------------------------------------
+    # BOTH
+    # --------------------------------------------------------
+
+    if route == "both":
+
+        rag_response = state.get(
+            "rag_response",
+            {},
+        )
+
+        sql_response = state.get(
+            "sql_response",
+            {},
+        )
+
+        final_response = (
+            "Bank Policy Information:\n\n"
+            + rag_response.get(
+                "answer",
+                "",
+            )
+            + "\n\nCustomer Data Information:\n\n"
+            + sql_response.get(
+                "answer",
+                "",
+            )
+        )
+
+        logger.info(
+            "Merge completed | route=both",
+        )
+
+        final_response = guard_output(final_response)
+
+        return {
+            "final_response": final_response,
+            "sources": state.get(
+                "sources",
+                [],
+            ),
+            "sql_response": sql_response,
+            "messages": [AIMessage(content=final_response)],
+        }
+
+    # --------------------------------------------------------
+    # SQL
+    # --------------------------------------------------------
+
+    if route == "sql":
+
+        sql_response = state.get(
+            "sql_response",
+            {},
+        )
+
+        logger.info("SQL merge state sources=%s", state.get("sources"))
+
+        final_response = sql_response.get(
+            "answer",
+            "No response available.",
+        )
+
+        logger.info(
+            "Merge completed | route=sql",
+        )
+
+        final_response = guard_output(final_response)
+
+        return {
+            "final_response": final_response,
+            "sources": state.get(
+                "sources",
+                [],
+            ),
+            "sql_response": sql_response,
+            "messages": [AIMessage(content=final_response)],
+        }
+
+    # --------------------------------------------------------
+    # RAG
+    # --------------------------------------------------------
 
     rag_response = state.get(
         "rag_response",
