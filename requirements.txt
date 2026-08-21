@@ -270,3 +270,9 @@ GUARDRAILS_API_KEY=<guardrails_api_key>
 
 
 
+-- smartbanking doc sheet. 
+https://docs.google.com/document/d/1NRpcl1Voqjqs8K50JgoqmV85Kl1CnNfgvGFTQ7e3rXs/edit?tab=t.0
+
+
+-- Arun Vijayendran Github repo 
+https://github.com/arunprabu/agentic_ai_course_jun2026.git
