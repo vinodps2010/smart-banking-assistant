@@ -228,5 +228,8 @@ def is_retrieval_relevant(
     )
 
     is_relevant = best_score >= threshold
+    logger.info("Re-Ranking Bes scrore :%s >= %s", str(best_score), str(threshold))
+
+    is_relevant = best_score >= threshold
 
     return is_relevant

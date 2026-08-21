@@ -13,6 +13,9 @@ from src.ingestion.ingestion import run_ingestion
 from src.common.logger import logger
 from src.services.rag_service import stream_rag_answer
 
+
+from src.common.guardrails import guard_input, guard_output,guard_sql_result
+
 import json
 
 router = APIRouter()
@@ -232,7 +235,7 @@ def query(
             "route": route,
             "query_path": route,
             "source": route,
-            "answer": result.get("final_response"),
+            "answer": guard_output(result.get("final_response")),
             # RAG / BOTH only
             "sources": sources,
             "citations": sources,
@@ -420,6 +423,8 @@ def stream_query(
 
         try:
 
+            guard_input(request.query)
+
             # ------------------------------------------------
             # Execute LangGraph
             # ------------------------------------------------
@@ -487,7 +492,7 @@ def stream_query(
                 # Stream tokens
                 # ---------------------------------------------
 
-                for token in stream_rag_answer(request.query):
+                for token in stream_rag_answer(request.query, sources):
 
                     yield (
                         "event: token\n"
@@ -518,9 +523,9 @@ def stream_query(
                     "data: "
                     + json.dumps(
                         {
-                            "answer": final_response,
+                            "answer": guard_output(final_response),
                             "route": route,
-                            "sql_result": sql_response,
+                            "sql_result": guard_sql_result(sql_response),
                             "sources": result.get(
                                 "sources",
                                 [],
@@ -548,7 +553,13 @@ def stream_query(
 
             logger.exception("Streaming query failed")
 
-            yield ("event: error\n" "data: " + json.dumps({"error": str(exc)}) + "\n\n")
+            # yield ("event: error\n" "data: " + json.dumps({"error": str(exc)}) + "\n\n")
+            yield (
+                "event: error\n"
+                "data: "
+                + json.dumps({"error": str(exc), "guardrail": "toxicity"})
+                + "\n\n"
+            )
 
     return StreamingResponse(
         event_generator(),

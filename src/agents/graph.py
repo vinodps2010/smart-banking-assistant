@@ -2,28 +2,37 @@
 LangGraph workflow for Smart Banking Assistant.
 
 Flow:
-
                     START
                       |
                       v
-               small_talks
-                /        \
-               /          \
-      fast match          continue
-          |                  |
-          v                  v
-         END            classifier
+                    memory
+                 /          \
+                /            \
+          memory found      continue
+              |                |
+              v                v
+             END          small_talks
+                              |
+                              |
+                         classifier
                          /   |   |   \
                         /    |   |    \
                        v     v   v     v
-                     rag   sql both  small_talks
-                      |     |    |       |
-                    retry  merge merge   END
+                     rag   sql both small_talks
+                      |
+                    retry
                       |
                    rephrase
                       |
                       v
                      rag
+
+                     sql/both
+                        |
+                      merge
+                        |
+                       END
+
 """
 
 from langgraph.graph import (
@@ -46,6 +55,7 @@ from src.agents.nodes import (
     merge_node,
     rephrase_query_node,
     decide_rag_retry,
+    memory_node,
 )
 
 from src.common.logger import logger
@@ -62,6 +72,11 @@ workflow = StateGraph(AgentState)
 # Register Nodes
 # ============================================================
 
+
+workflow.add_node(
+    "memory",
+    memory_node,
+)
 
 workflow.add_node(
     "classifier",
@@ -103,12 +118,22 @@ workflow.add_node(
 # Entry Point
 # ============================================================
 
-workflow.set_entry_point("small_talks")
+workflow.set_entry_point("memory")
 
 
 # ============================================================
 # Fast Small-Talk / Classifier Routing
 # ============================================================
+
+workflow.add_conditional_edges(
+    "memory",
+    lambda state: state["route"],
+    {
+        "memory": END,
+        "continue": "small_talks",
+    },
+)
+
 
 workflow.add_conditional_edges(
     "small_talks",

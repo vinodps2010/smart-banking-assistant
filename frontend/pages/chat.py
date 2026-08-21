@@ -356,6 +356,10 @@ if prompt:
 
     with st.chat_message("assistant"):
 
+        status_placeholder = st.empty()
+
+        status_placeholder.info("🤖 Understanding your question...")
+
         answer_text = ""
 
         response_metadata = {}
@@ -381,7 +385,7 @@ if prompt:
                     )
 
                     if token:
-
+                        status_placeholder.empty()
                         yield token
 
                 # --------------------------------------------
@@ -427,7 +431,13 @@ if prompt:
 
         try:
 
+            # status = st.empty()
+
+            status_placeholder.info("🤖 Processing your request...")
+
             answer_text = st.write_stream(stream_response())
+
+            status_placeholder.empty()
 
         except Exception as exc:
 
