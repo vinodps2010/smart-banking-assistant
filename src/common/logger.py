@@ -1,9 +1,21 @@
 import logging
 import os
+import sys
 
 LOG_DIR = "logs"
 
 os.makedirs(LOG_DIR, exist_ok=True)
+
+
+# ============================================================
+# UTF-8 Console Support (Windows)
+# ============================================================
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
 
 
 # ============================================================
@@ -20,8 +32,11 @@ logging.basicConfig(
         "%(message)s"
     ),
     handlers=[
-        logging.FileHandler("logs/application.log"),
-        logging.StreamHandler(),
+        logging.FileHandler(
+            "logs/application.log",
+            encoding="utf-8",
+        ),
+        logging.StreamHandler(sys.stdout),
     ],
 )
 
@@ -44,11 +59,11 @@ logging.getLogger("torch").setLevel(logging.WARNING)
 
 logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
 
+logging.getLogger("presidio-analyzer").setLevel(logging.WARNING)
+
 
 # ============================================================
 # Application Logger
 # ============================================================
 
-logger = logging.getLogger(
-    "SBA"
-)
+logger = logging.getLogger("SBA")

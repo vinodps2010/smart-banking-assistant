@@ -2,15 +2,20 @@
 LangGraph agent nodes for Smart Banking Assistant.
 
 Nodes:
-1. small_talks_response_node
-2. classify_query
-3. rag_node
-4. decide_rag_retry
-5. rephrase_query_node
-6. sql_node
-7. both_node
-8. merge_node
+1. memory_node
+2. small_talks_response_node
+3. classify_query
+4. rag_node
+5. decide_rag_retry
+6. rephrase_query_node
+7. sql_node
+8. both_node
+9. merge_node
+
 """
+
+from src.common.guardrails import guard_output
+
 
 from src.agents.state import AgentState
 
@@ -72,6 +77,11 @@ def is_memory_question(
         "you mentioned",
         "i mentioned",
         "who am i",
+        "summary",
+        "summarize",
+        "conversation summary",
+        "history",
+        "chat history",
     ]
 
     query_lower = query.lower()
@@ -98,6 +108,11 @@ def answer_from_conversation_memory(
     if not messages:
 
         return "I don't have any previous conversation context " "available yet."
+
+    logger.info(
+        "Conversation memory retrieved | message_count=%d",
+        len(messages),
+    )
 
     conversation_parts = []
 
@@ -134,37 +149,36 @@ def answer_from_conversation_memory(
     conversation = "\n".join(conversation_parts)
 
     prompt = f"""
-You are the conversation-memory component of
-NorthStar Bank Smart Assistant.
+    You are the conversation memory assistant for NorthStar Bank.
 
-Use ONLY the previous conversation to answer
-the user's current question.
+    You have access to the previous conversation between the customer and assistant.
 
-Previous conversation:
-----------------------
+    Previous conversation:
+    ---------------------
+    {conversation}
+    ---------------------
 
-{conversation}
+    Current customer request:
+    ---------------------
+    {query}
+    ---------------------
 
-Current user question:
-----------------------
 
-{query}
+    Instructions:
 
-Rules:
+    1. If customer asks to summarize previous conversation:
+    - Summarize the questions asked by the customer.
+    - Mention important topics discussed.
+    - Provide a short bullet list.
 
-1. Do not use outside knowledge.
-2. Do not use the banking knowledge base.
-3. Do not use SQL.
-4. Answer only from information present in
-   the previous conversation.
-5. If the information was mentioned previously,
-   answer it clearly and naturally.
-6. If the information was not mentioned previously,
-   politely say that you do not have that information
-   in this conversation.
-7. Do not mention prompts, tools, checkpoints,
-   retrieval, or internal processing.
-"""
+    2. If customer asks about something mentioned earlier:
+    - Answer using the conversation history.
+
+    3. Do not say "information not available" if previous conversation exists.
+
+    4. If no history exists, clearly say that no previous conversation is available.
+
+    """
 
     try:
 
@@ -176,12 +190,17 @@ Rules:
                     "content": prompt,
                 }
             ],
-            max_completion_tokens=100,
+            max_completion_tokens=300,
         )
 
         answer = (
             response.choices[0].message.content
-            or "I couldn't find that information in our previous conversation."
+            or "I was unable to generate a response from the conversation history."
+        )
+
+        logger.info(
+            "Memory answer generated: %s",
+            answer,
         )
 
         return answer
@@ -243,24 +262,6 @@ def small_talks_response_node(
     if not fast_checked:
 
         # ----------------------------------------------------
-        # Conversation memory fast path
-        # ----------------------------------------------------
-
-        if is_memory_question(query):
-
-            response = answer_from_conversation_memory(
-                query=query,
-                messages=messages,
-            )
-
-            return {
-                "route": "small_talks",
-                "guardrail": "allow",
-                "fast_small_talk_checked": True,
-                "final_response": response,
-                "messages": [AIMessage(content=response)],
-            }
-        # ----------------------------------------------------
         # Exact greetings
         # ----------------------------------------------------
 
@@ -297,7 +298,7 @@ def small_talks_response_node(
         }:
 
             response = (
-                "You're very welcome! 😊 "
+                "You're very welcome!  "
                 "Please let me know if you need any banking assistance."
             )
 
@@ -424,23 +425,6 @@ def small_talks_response_node(
         }
 
     # ========================================================
-    # CONVERSATION MEMORY
-    # ========================================================
-
-    if is_memory_question(query):
-
-        response = answer_from_conversation_memory(
-            query=query,
-            messages=messages,
-        )
-
-        return {
-            "route": "small_talks",
-            "final_response": response,
-            "messages": [AIMessage(content=response)],
-        }
-
-    # ========================================================
     # USER INTRODUCTION
     # ========================================================
 
@@ -499,7 +483,7 @@ def small_talks_response_node(
 
     if query.startswith("my ") and " is " in query:
 
-        response = "Got it! I'll remember that for this conversation. 😊"
+        response = "Got it! I'll remember that for this conversation. "
 
         return {
             "route": "small_talks",
@@ -512,7 +496,7 @@ def small_talks_response_node(
     # ========================================================
 
     response = (
-        "I'd be happy to assist you. 😊 "
+        "I'd be happy to assist you.  "
         "I'm here to help with NorthStar Bank banking "
         "services, including loans, accounts, credit cards, "
         "fixed deposits, eligibility, charges, and banking "
@@ -713,7 +697,7 @@ IMPORTANT CLASSIFICATION RULES
                     "content": query,
                 },
             ],
-            max_completion_tokens=100,
+            max_completion_tokens=300,
         )
 
         content = (response.choices[0].message.content or "").strip()
@@ -912,7 +896,7 @@ def rag_node(
 
     try:
 
-        result = answer_rag_query(query)
+        result = answer_rag_query(query, history=state.get("messages", []))
 
         retry_count = state.get(
             "retry_count",
@@ -1149,7 +1133,7 @@ def both_node(
         # RAG
         # ----------------------------------------------------
 
-        rag_result = answer_rag_query(query)
+        rag_result = answer_rag_query(query, history=state.get("messages", []))
 
         # ----------------------------------------------------
         # SQL
@@ -1254,6 +1238,8 @@ def merge_node(
             "Merge completed | route=both",
         )
 
+        final_response = guard_output(final_response)
+
         return {
             "final_response": final_response,
             "sources": state.get(
@@ -1286,6 +1272,8 @@ def merge_node(
             "Merge completed | route=sql",
         )
 
+        final_response = guard_output(final_response)
+
         return {
             "final_response": final_response,
             "sources": state.get(
@@ -1314,7 +1302,59 @@ def merge_node(
         "Merge completed | route=rag",
     )
 
+    final_response = guard_output(final_response)
+
     return {
         "final_response": final_response,
         "messages": [AIMessage(content=final_response)],
+    }
+
+
+# ============================================================
+# Conversation Memory Node
+# ============================================================
+
+
+def memory_node(
+    state: AgentState,
+):
+    """
+    Retrieve and answer from previous conversation history.
+    No RAG.
+    No SQL.
+    """
+
+    query = state["query"]
+
+    messages = state.get(
+        "messages",
+        [],
+    )
+
+    logger.info(
+        "MEMORY DEBUG | message_count=%s",
+        len(messages),
+    )
+
+    for msg in messages:
+
+        logger.info(
+            "MEMORY DEBUG | %s : %s",
+            msg.__class__.__name__,
+            msg.content,
+        )
+
+    if not is_memory_question(query):
+
+        return {"route": "continue"}
+
+    response = answer_from_conversation_memory(
+        query=query,
+        messages=messages,
+    )
+
+    return {
+        "route": "memory",
+        "final_response": response,
+        "messages": [AIMessage(content=response)],
     }

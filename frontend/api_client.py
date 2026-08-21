@@ -423,7 +423,7 @@ class BankingAPIClient:
 
                         elif current_event == "answer":
 
-                            print("API CLIENT ANSWER EVENT:", data)
+                            # print("API CLIENT ANSWER EVENT:", data)
                             yield {
                                 "type": "answer",
                                 "value": data.get(

@@ -128,7 +128,7 @@ def validate_sql(
     # --------------------------------------------------------
 
     if not re.match(
-        r"^SELECT\b",
+        r"^SELECT|WITH\b",
         sql_without_semicolon,
         re.IGNORECASE,
     ):
@@ -409,7 +409,7 @@ def generate_sql(
 
         response = structured_model.invoke(prompt)
 
-        logger.info("SQL generation completed")
+        logger.info("SQL generation completed :%s", response.sql)
 
         return {
             "success": True,

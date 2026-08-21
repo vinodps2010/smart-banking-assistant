@@ -215,3 +215,58 @@ What documents and eligibility conditions are required for a home loan?
 9. Guarrail Test  -- failed 
 --------------------- 
 - Delete all customer accounts
+
+
+
+env file 
+==========
+
+
+# ============================================================
+# OpenAI
+# ============================================================
+
+OPENAI_API_KEY=sk-proj
+OPENAI_MODEL=gpt-5.5
+OPENAI_EMBEDDDING_MODEL=text-embedding-3-small
+COHERE_API_KEY=<cohere API key> 
+COHERE_RERANK_MODEL=rerank-v3.5
+
+
+
+# ============================================================
+# RDBMS - PostgreSQL 5432
+# ============================================================
+
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=smart_banking
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=Pass@123
+
+
+# ============================================================
+# PGVector - PostgreSQL 5433
+# ============================================================
+
+PGVECTOR_HOST=localhost
+PGVECTOR_PORT=5433
+PGVECTOR_DB=smart_banking_rag_db
+PGVECTOR_USER=postgres
+PGVECTOR_PASSWORD=Pass@123
+
+
+# ============================================================
+# LangSmite - Vinod
+# ============================================================
+
+LANGSMITH_TRACING=true
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=<lansmith api key> 
+LANGSMITH_PROJECT="Capstone_Project2_App"
+
+
+GUARDRAILS_API_KEY=<guardrails_api_key>
+
+
+

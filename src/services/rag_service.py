@@ -85,6 +85,28 @@ Content:
     return context
 
 
+def _build_conversation_history(history):
+
+    if not history:
+        return ""
+
+    conversation_parts = []
+
+    for message in history:
+
+        content = getattr(
+            message,
+            "content",
+            "",
+        )
+
+        if content:
+
+            conversation_parts.append(f"{message.__class__.__name__}: {content}")
+
+    return "\n".join(conversation_parts)
+
+
 # ============================================================
 # Generate RAG Answer
 # ============================================================
@@ -93,6 +115,7 @@ Content:
 def _generate_rag_answer(
     query: str,
     context: str,
+    history=None,
 ):
     """
     Generate customer-facing answer using the centralized
@@ -103,7 +126,10 @@ def _generate_rag_answer(
         "RAG answer generation started",
     )
 
+    conversation = _build_conversation_history(history)
+
     prompt = SYS_PROMPT.format(
+        history=conversation,
         context=context,
         query=query,
     )
@@ -142,6 +168,7 @@ def _generate_rag_answer(
 
 def answer_rag_query(
     query: str,
+    history=None,
 ):
     """
     Complete RAG pipeline:
@@ -214,7 +241,7 @@ def answer_rag_query(
 
     retry_required = not is_retrieval_relevant(
         chunks,
-        threshold=0.50,
+        threshold=0.30,
     )
 
     # --------------------------------------------------------
@@ -230,6 +257,7 @@ def answer_rag_query(
     answer = _generate_rag_answer(
         query=query,
         context=context,
+        history=history,
     )
 
     # --------------------------------------------------------
@@ -265,6 +293,8 @@ def answer_rag_query(
 
 def stream_rag_answer(
     query: str,
+    chunks: list,
+    history=None,
 ):
     """
     Stream the RAG answer.
@@ -284,7 +314,7 @@ def stream_rag_answer(
     # --------------------------------------------------------
     # Retrieval
     # --------------------------------------------------------
-
+    """   
     try:
 
         chunks = hybrid_reranked_search(
@@ -300,7 +330,7 @@ def stream_rag_answer(
         )
 
         raise
-
+    """
     logger.info("Streaming RAG retrieval completed ")
 
     # --------------------------------------------------------
@@ -330,8 +360,10 @@ def stream_rag_answer(
     # --------------------------------------------------------
     # Use the SAME system prompt as normal RAG
     # --------------------------------------------------------
+    conversation = _build_conversation_history(history)
 
     prompt = SYS_PROMPT.format(
+        history=conversation,
         context=context,
         query=query,
     )
@@ -361,6 +393,8 @@ def stream_rag_answer(
     # Stream tokens
     # --------------------------------------------------------
 
+    logger.info("Streaming token started")
+
     full_answer = ""
 
     for chunk in response:
@@ -373,6 +407,12 @@ def stream_rag_answer(
         if token:
 
             full_answer += token
+            """
+            logger.info(
+                "Streaming token | %s",
+                token,
+            )
+            """
 
             yield token
 
